@@ -3,7 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Sistem Logistik Darah Presisi</title>
+    <title>BloodSync — Sistem Logistik Darah Presisi</title>
+    <meta name="description" content="Sistem logistik darah terintegrasi real-time yang menghubungkan rumah sakit, UDD PMI, keluarga pasien, dan pendonor secara presisi.">
     <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 32 32%22%3E%3Crect width=%2232%22 height=%2232%22 rx=%228%22 fill=%22%23e11d48%22/%3E%3Cpath d=%22M16 6c-4 6-7 9.5-7 13a7 7 0 0 0 14 0c0-3.5-3-7-7-13z%22 fill=%22white%22/%3E%3C/svg%3E">
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
@@ -13,93 +14,185 @@
             theme: {
                 extend: {
                     fontFamily: { sans: ['"Plus Jakarta Sans"', 'sans-serif'] },
-                    colors: { brand: { 50: '#fff1f2', 100: '#ffe4e6', 500: '#f43f5e', 600: '#e11d48', 700: '#be123c' } }
+                    colors: { brand: { 50: '#fff1f2', 100: '#ffe4e6', 200: '#fecdd3', 500: '#f43f5e', 600: '#e11d48', 700: '#be123c' } }
                 }
             }
         }
     </script>
+    <style>
+        body { background: #0f172a; }
+        .bg-grid {
+            background-image: linear-gradient(rgba(255,255,255,0.03) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.03) 1px, transparent 1px);
+            background-size: 40px 40px;
+        }
+        .orb-1 { position:absolute; width:500px; height:500px; background:radial-gradient(circle, rgba(225,29,72,0.15) 0%, transparent 70%); border-radius:50%; top:-100px; left:-100px; pointer-events:none; }
+        .orb-2 { position:absolute; width:400px; height:400px; background:radial-gradient(circle, rgba(59,130,246,0.10) 0%, transparent 70%); border-radius:50%; top:100px; right:-100px; pointer-events:none; }
+        .role-card { background:rgba(255,255,255,0.04); border:1px solid rgba(255,255,255,0.08); transition:all 0.3s ease; position:relative; overflow:hidden; }
+        .role-card::before { content:''; position:absolute; inset:0; opacity:0; transition:opacity 0.3s ease; border-radius:inherit; }
+        .role-card:hover { transform:translateY(-6px); border-color:rgba(255,255,255,0.18); box-shadow:0 24px 64px rgba(0,0,0,0.5); }
+        .role-card.card-blue::before { background:radial-gradient(circle at top left, rgba(59,130,246,0.1), transparent 60%); }
+        .role-card.card-orange::before { background:radial-gradient(circle at top left, rgba(249,115,22,0.1), transparent 60%); }
+        .role-card.card-red::before { background:radial-gradient(circle at top left, rgba(225,29,72,0.1), transparent 60%); }
+        .role-card:hover::before { opacity:1; }
+        .live-badge::before { content:''; display:inline-block; width:7px; height:7px; background:#4ade80; border-radius:50%; margin-right:6px; animation:pulse-green 2s infinite; }
+        @keyframes pulse-green { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:0.5;transform:scale(0.85)} }
+        .step-card { background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.07); border-radius:16px; transition:all 0.25s ease; }
+        .step-card:hover { background:rgba(255,255,255,0.06); border-color:rgba(255,255,255,0.12); }
+        .divider { border-color:rgba(255,255,255,0.07); }
+    </style>
 </head>
-<body class="bg-slate-50 text-slate-800 min-h-screen flex flex-col antialiased">
+<body class="text-slate-100 min-h-screen flex flex-col antialiased relative">
+
+    <div class="orb-1"></div>
+    <div class="orb-2"></div>
+
     <!-- Navbar -->
-    <nav class="bg-white shadow-sm py-4 px-6 border-b border-slate-100">
-        <div class="max-w-6xl mx-auto flex justify-between items-center">
+    <nav class="relative z-10 border-b border-white/[0.07] bg-gradient-to-r from-slate-900 via-slate-800 to-slate-700 backdrop-blur-md sticky top-0">
+        <div class="max-w-6xl mx-auto px-6 h-16 flex items-center justify-between">
             <div class="flex items-center gap-3">
-                <div class="w-10 h-10 rounded-xl bg-brand-600 flex items-center justify-center text-white font-bold shadow-lg shadow-brand-200">
-                    <i class="fa-solid fa-droplet text-lg"></i>
+                <div class="w-9 h-9 rounded-xl bg-brand-600 flex items-center justify-center shadow-lg shadow-brand-600/30">
+                    <i class="fa-solid fa-droplet text-white"></i>
                 </div>
-                <span class="font-extrabold text-2xl tracking-tight text-slate-900">BloodSync<span class="text-brand-600">.</span></span>
+                <span class="font-extrabold text-xl tracking-tight text-white">BloodSync<span class="text-brand-500">.</span></span>
             </div>
+            <span class="live-badge text-xs font-semibold text-slate-300">Sistem Aktif</span>
         </div>
     </nav>
 
-    <!-- Main Content -->
-    <main class="flex-grow flex items-center justify-center p-6 py-12">
-        <div class="max-w-5xl w-full">
-            <div class="text-center mb-16">
-                <div class="inline-block px-4 py-1.5 rounded-full bg-brand-50 text-brand-700 font-semibold text-sm mb-4 border border-brand-100">
-                    Terintegrasi & Real-Time
-                </div>
-                <h1 class="text-4xl md:text-5xl lg:text-6xl font-extrabold text-slate-900 mb-6 tracking-tight leading-tight">
-                    Logistik Darah & <br/><span class="text-transparent bg-clip-text bg-gradient-to-r from-brand-600 to-orange-500">Notifikasi Presisi</span>
-                </h1>
-                <p class="text-lg text-slate-500 max-w-2xl mx-auto">Satu sistem untuk rumah sakit, UDD PMI, keluarga pasien, dan pendonor. Stok darah terpantau real-time dan panggilan donor hanya dikirim ke orang yang tepat.</p>
-            </div>
+    <!-- Main -->
+    <main class="relative z-10 flex-grow">
 
-            <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
-                <!-- Faskes Card -->
-                <a href="faskes.html" class="group bg-white rounded-3xl p-8 shadow-sm border border-slate-200 hover:shadow-2xl hover:border-blue-300 transition-all duration-300 transform hover:-translate-y-2 relative overflow-hidden">
-                    <div class="absolute top-0 right-0 w-32 h-32 bg-blue-50 rounded-bl-full -mr-16 -mt-16 transition-transform group-hover:scale-110"></div>
-                    <div class="w-16 h-16 rounded-2xl bg-blue-100 text-blue-600 flex items-center justify-center text-3xl mb-6 relative z-10">
+        <!-- Hero -->
+        <section class="max-w-6xl mx-auto px-6 pt-20 pb-16 text-center">
+            <div class="inline-flex items-center gap-2 px-4 py-2 rounded-full border border-white/10 bg-white/5 text-sm font-medium text-slate-300 mb-8 backdrop-blur-sm">
+                <i class="fa-solid fa-bolt text-brand-500 text-xs"></i>
+                Terintegrasi &amp; Real-Time
+            </div>
+            <h1 class="text-5xl md:text-6xl lg:text-7xl font-extrabold tracking-tight leading-[1.08] mb-6">
+                <span class="text-white">Logistik Darah &amp;</span><br>
+                <span class="text-transparent bg-clip-text bg-gradient-to-r from-brand-500 via-orange-400 to-orange-500">Notifikasi Presisi</span>
+            </h1>
+            <p class="text-lg text-slate-400 max-w-2xl mx-auto leading-relaxed">
+                Satu sistem untuk rumah sakit, UDD PMI, keluarga pasien, dan pendonor.<br class="hidden sm:block">
+                Stok darah terpantau <span class="text-slate-200 font-medium">real-time</span> dan panggilan donor hanya dikirim ke <span class="text-slate-200 font-medium">orang yang tepat</span>.
+            </p>
+            <!-- Stats -->
+            <div class="flex flex-wrap justify-center gap-10 mt-12">
+                <div class="text-center">
+                    <div class="text-3xl font-extrabold text-white">4</div>
+                    <div class="text-xs text-slate-500 mt-1 uppercase tracking-wider">Peran Terhubung</div>
+                </div>
+                <div class="w-px bg-white/10 hidden sm:block"></div>
+                <div class="text-center">
+                    <div class="text-3xl font-extrabold text-white">&#8734;</div>
+                    <div class="text-xs text-slate-500 mt-1 uppercase tracking-wider">Real-time Sync</div>
+                </div>
+                <div class="w-px bg-white/10 hidden sm:block"></div>
+                <div class="text-center">
+                    <div class="text-3xl font-extrabold text-white">0</div>
+                    <div class="text-xs text-slate-500 mt-1 uppercase tracking-wider">Registrasi Diperlukan</div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Role Cards -->
+        <section class="max-w-6xl mx-auto px-6 pb-16">
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-5">
+
+                <a href="faskes.html" class="role-card card-blue rounded-2xl p-7 group">
+                    <div class="w-14 h-14 rounded-xl bg-blue-500/15 text-blue-400 flex items-center justify-center text-2xl mb-5 ring-1 ring-blue-500/20 group-hover:scale-110 transition-transform">
                         <i class="fa-solid fa-hospital"></i>
                     </div>
-                    <h2 class="text-2xl font-bold mb-3 text-slate-900 relative z-10">Petugas Faskes</h2>
-                    <p class="text-slate-500 text-sm leading-relaxed relative z-10">Dasbor RS/PMI, validasi permintaan pasien, dan aktivasi Dispatch Engine untuk notifikasi darurat ke radius terdekat.</p>
+                    <h2 class="text-xl font-bold text-white mb-2">Petugas Faskes</h2>
+                    <p class="text-sm text-slate-400 leading-relaxed mb-5">Dasbor RS/PMI, validasi permintaan pasien, dan aktivasi Dispatch Engine untuk notifikasi darurat ke radius terdekat.</p>
+                    <div class="flex items-center gap-2 text-blue-400 text-sm font-semibold">
+                        Buka Dasbor <i class="fa-solid fa-arrow-right text-xs transition-transform group-hover:translate-x-1"></i>
+                    </div>
                 </a>
 
-                <!-- Pasien Card -->
-                <a href="pasien.html" class="group bg-white rounded-3xl p-8 shadow-sm border border-slate-200 hover:shadow-2xl hover:border-orange-300 transition-all duration-300 transform hover:-translate-y-2 relative overflow-hidden">
-                    <div class="absolute top-0 right-0 w-32 h-32 bg-orange-50 rounded-bl-full -mr-16 -mt-16 transition-transform group-hover:scale-110"></div>
-                    <div class="w-16 h-16 rounded-2xl bg-orange-100 text-orange-600 flex items-center justify-center text-3xl mb-6 relative z-10">
+                <a href="pasien.html" class="role-card card-orange rounded-2xl p-7 group">
+                    <div class="w-14 h-14 rounded-xl bg-orange-500/15 text-orange-400 flex items-center justify-center text-2xl mb-5 ring-1 ring-orange-500/20 group-hover:scale-110 transition-transform">
                         <i class="fa-solid fa-user-injured"></i>
                     </div>
-                    <h2 class="text-2xl font-bold mb-3 text-slate-900 relative z-10">Keluarga Pasien</h2>
-                    <p class="text-slate-500 text-sm leading-relaxed relative z-10">Formulir pengajuan darah darurat tanpa akun rumit, dilengkapi live-tracker pencarian donor dan tautan shareable otomatis.</p>
+                    <h2 class="text-xl font-bold text-white mb-2">Keluarga Pasien</h2>
+                    <p class="text-sm text-slate-400 leading-relaxed mb-5">Formulir pengajuan darah darurat tanpa akun rumit, dilengkapi live-tracker pencarian donor dan tautan shareable otomatis.</p>
+                    <div class="flex items-center gap-2 text-orange-400 text-sm font-semibold">
+                        Ajukan Sekarang <i class="fa-solid fa-arrow-right text-xs transition-transform group-hover:translate-x-1"></i>
+                    </div>
                 </a>
 
-                <!-- Pendonor Card -->
-                <a href="pendonor.html" class="group bg-white rounded-3xl p-8 shadow-sm border border-slate-200 hover:shadow-2xl hover:border-brand-300 transition-all duration-300 transform hover:-translate-y-2 relative overflow-hidden">
-                    <div class="absolute top-0 right-0 w-32 h-32 bg-brand-50 rounded-bl-full -mr-16 -mt-16 transition-transform group-hover:scale-110"></div>
-                    <div class="w-16 h-16 rounded-2xl bg-brand-100 text-brand-600 flex items-center justify-center text-3xl mb-6 relative z-10">
+                <a href="pendonor.html" class="role-card card-red rounded-2xl p-7 group">
+                    <div class="w-14 h-14 rounded-xl bg-brand-500/15 text-brand-400 flex items-center justify-center text-2xl mb-5 ring-1 ring-brand-500/20 group-hover:scale-110 transition-transform">
                         <i class="fa-solid fa-hand-holding-heart"></i>
                     </div>
-                    <h2 class="text-2xl font-bold mb-3 text-slate-900 relative z-10">Calon Pendonor</h2>
-                    <p class="text-slate-500 text-sm leading-relaxed relative z-10">Aplikasi mobile-first untuk menerima notifikasi push presisi berdasarkan lokasi/golongan darah dan tiket donor digital.</p>
-                </a>
-            </div>
-            
-            <div class="mt-8 flex justify-center">
-                <a href="admin.html" class="inline-flex items-center gap-2 text-sm font-semibold text-slate-500 hover:text-slate-900 bg-white border border-slate-200 rounded-full px-5 py-2.5 shadow-sm hover:shadow transition-all">
-                    <i class="fa-solid fa-user-shield"></i> Super Admin: perizinan faskes, akun & audit data
+                    <h2 class="text-xl font-bold text-white mb-2">Calon Pendonor</h2>
+                    <p class="text-sm text-slate-400 leading-relaxed mb-5">Aplikasi mobile-first untuk menerima notifikasi push presisi berdasarkan lokasi/golongan darah dan tiket donor digital.</p>
+                    <div class="flex items-center gap-2 text-brand-400 text-sm font-semibold">
+                        Daftar Sekarang <i class="fa-solid fa-arrow-right text-xs transition-transform group-hover:translate-x-1"></i>
+                    </div>
                 </a>
             </div>
 
-            <div class="mt-12 bg-blue-50/80 rounded-2xl p-6 text-blue-900 flex flex-col sm:flex-row items-start gap-4 border border-blue-100">
-                <div class="w-12 h-12 rounded-full bg-blue-100 flex items-center justify-center flex-shrink-0 text-xl text-blue-600">
-                    <i class="fa-solid fa-lightbulb"></i>
+            <!-- Admin link -->
+            <div class="flex justify-center mt-6">
+                <a href="admin.html" class="inline-flex items-center gap-2.5 text-sm font-medium text-slate-400 hover:text-slate-200 bg-white/[0.04] border border-white/[0.08] rounded-full px-5 py-2.5 hover:bg-white/[0.07] transition-all">
+                    <i class="fa-solid fa-user-shield text-slate-500"></i>
+                    Super Admin: perizinan faskes, akun &amp; audit data
+                    <i class="fa-solid fa-chevron-right text-xs text-slate-600"></i>
+                </a>
+            </div>
+        </section>
+
+        <!-- How it Works -->
+        <section class="max-w-6xl mx-auto px-6 pb-20">
+            <hr class="divider mb-12">
+            <div class="flex items-center gap-3 mb-8">
+                <div class="w-9 h-9 rounded-lg bg-white/[0.06] flex items-center justify-center text-slate-300">
+                    <i class="fa-solid fa-diagram-project text-sm"></i>
                 </div>
-                <div class="flex-grow">
-                    <h3 class="font-bold text-lg mb-1">Cara Kerja</h3>
-                    <p class="text-sm text-blue-800/80 leading-relaxed mb-3">Setiap perubahan langsung tersinkron ke semua pihak, tanpa perlu memuat ulang halaman.</p>
-                    <ol class="text-sm text-blue-900/90 leading-relaxed list-decimal pl-5 space-y-1">
-                        <li><b>Keluarga pasien</b> mengajukan kebutuhan darah dengan verifikasi WhatsApp dan foto surat pengantar dokter.</li>
-                        <li><b>Petugas faskes</b> memverifikasi surat, memakai stok sendiri atau meminta mutasi dari faskes terdekat.</li>
-                        <li>Jika stok belum cukup, <b>panggilan darurat</b> dikirim hanya ke pendonor yang golongannya cocok, berada di dekat faskes, dan sudah siap donor.</li>
-                        <li><b>Pendonor</b> menekan Siap Mendonor, mendapat tiket QR dan rute menuju faskes.</li>
-                        <li>Setelah darah diambil, kebutuhan otomatis berkurang dan <b>kartu darurat publik</b> berubah menjadi CLOSED begitu terpenuhi.</li>
-                    </ol>
+                <h2 class="text-lg font-bold text-white">Cara Kerja</h2>
+                <span class="text-xs text-slate-500 font-medium hidden sm:block">Setiap perubahan langsung tersinkron ke semua pihak</span>
+            </div>
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
+                <div class="step-card p-5">
+                    <div class="text-2xl font-extrabold text-white/10 mb-3">01</div>
+                    <div class="text-xs font-bold text-orange-400 uppercase tracking-wider mb-2">Keluarga Pasien</div>
+                    <p class="text-sm text-slate-400 leading-relaxed">Mengajukan kebutuhan darah dengan verifikasi WhatsApp dan foto surat pengantar dokter.</p>
+                </div>
+                <div class="step-card p-5">
+                    <div class="text-2xl font-extrabold text-white/10 mb-3">02</div>
+                    <div class="text-xs font-bold text-blue-400 uppercase tracking-wider mb-2">Petugas Faskes</div>
+                    <p class="text-sm text-slate-400 leading-relaxed">Memverifikasi surat, memakai stok sendiri atau meminta mutasi dari faskes terdekat.</p>
+                </div>
+                <div class="step-card p-5">
+                    <div class="text-2xl font-extrabold text-white/10 mb-3">03</div>
+                    <div class="text-xs font-bold text-yellow-400 uppercase tracking-wider mb-2">Panggilan Darurat</div>
+                    <p class="text-sm text-slate-400 leading-relaxed">Dikirim hanya ke pendonor yang golongannya cocok, berada di dekat faskes, dan sudah siap donor.</p>
+                </div>
+                <div class="step-card p-5">
+                    <div class="text-2xl font-extrabold text-white/10 mb-3">04</div>
+                    <div class="text-xs font-bold text-brand-400 uppercase tracking-wider mb-2">Pendonor</div>
+                    <p class="text-sm text-slate-400 leading-relaxed">Menekan Siap Mendonor, mendapat tiket QR dan rute menuju faskes secara otomatis.</p>
+                </div>
+                <div class="step-card p-5">
+                    <div class="text-2xl font-extrabold text-white/10 mb-3">05</div>
+                    <div class="text-xs font-bold text-green-400 uppercase tracking-wider mb-2">Selesai</div>
+                    <p class="text-sm text-slate-400 leading-relaxed">Kebutuhan berkurang otomatis dan kartu darurat publik berubah menjadi <span class="font-semibold text-green-400">CLOSED</span>.</p>
                 </div>
             </div>
-        </div>
+        </section>
     </main>
-    </body>
+
+    <!-- Footer -->
+    <footer class="relative z-10 border-t border-white/[0.06] py-6">
+        <div class="max-w-6xl mx-auto px-6 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-slate-600">
+            <div class="flex items-center gap-2">
+                <i class="fa-solid fa-droplet text-brand-600"></i>
+                <span class="font-bold text-slate-500">BloodSync</span>
+                <span>— Logistik Darah Presisi</span>
+            </div>
+            <span>Sistem aktif untuk keselamatan pasien kritis</span>
+        </div>
+    </footer>
+</body>
 </html>

@@ -1,5 +1,7 @@
 // admin.js — super admin: impact summary, faskes licensing, staff accounts, audit log
-const audit = { page: 1, actor: '', total: 0, pageSize: 15 };
+const audit  = { page: 1, actor: '', total: 0, pageSize: 15 };
+const faskes_ = { page: 1, pageSize: 15, data: [] };
+const users_  = { page: 1, pageSize: 15, data: [] };
 let unsubscribe = null;
 
 const STATUS_COLOR = {
@@ -27,8 +29,33 @@ document.addEventListener('DOMContentLoaded', () => {
         audit.page = 1;
         loadAudit();
     });
+
+    // Pagination controls — faskes
+    document.getElementById('faskesPrev').addEventListener('click', () => { faskes_.page--; renderFaskes(); });
+    document.getElementById('faskesNext').addEventListener('click', () => { faskes_.page++; renderFaskes(); });
+    document.getElementById('faskesPageSize').addEventListener('change', (e) => {
+        faskes_.pageSize = Number(e.target.value);
+        faskes_.page = 1;
+        renderFaskes();
+    });
+
+    // Pagination controls — users
+    document.getElementById('usersPrev').addEventListener('click', () => { users_.page--; renderUsers(); });
+    document.getElementById('usersNext').addEventListener('click', () => { users_.page++; renderUsers(); });
+    document.getElementById('usersPageSize').addEventListener('change', (e) => {
+        users_.pageSize = Number(e.target.value);
+        users_.page = 1;
+        renderUsers();
+    });
+
+    // Pagination controls — audit
     document.getElementById('auditPrev').addEventListener('click', () => { audit.page--; loadAudit(); });
     document.getElementById('auditNext').addEventListener('click', () => { audit.page++; loadAudit(); });
+    document.getElementById('auditPageSize').addEventListener('change', (e) => {
+        audit.pageSize = Number(e.target.value);
+        audit.page = 1;
+        loadAudit();
+    });
 
     if (session.get('admin')) start();
 });
@@ -66,10 +93,14 @@ function start() {
 async function load() {
     if (!session.get('admin')) return;
     try {
-        const [overview, faskes, users] = await Promise.all([store.admin.overview(), store.admin.faskes(), store.admin.users()]);
+        const [overview, faskesList, usersList] = await Promise.all([store.admin.overview(), store.admin.faskes(), store.admin.users()]);
         renderOverview(overview);
-        renderFaskes(faskes);
-        renderUsers(users, faskes);
+        faskes_.data = faskesList;
+        faskes_.page = 1;
+        renderFaskes();
+        users_.data = usersList;
+        users_.page = 1;
+        renderUsers(faskesList);
         await loadAudit();
     } catch (error) {
         if (error.status === 401 || error.status === 403) return logout();
@@ -114,9 +145,36 @@ function toggleButton(kind, id, active) {
     return `<button data-toggle="${kind}" data-id="${esc(id)}" data-active="${active}" class="${active ? 'bg-green-100 text-green-700' : 'bg-slate-100 text-slate-500'} px-2.5 py-1 rounded-md text-xs font-bold hover:opacity-80">${active ? 'Aktif' : 'Nonaktif'}</button>`;
 }
 
-function renderFaskes(list) {
+function pageButtons(containerId, page, pages, onGo) {
+    const el = document.getElementById(containerId);
+    if (!el) return;
+    el.innerHTML = '';
+    const max = 5;
+    let start = Math.max(1, page - 2);
+    let end   = Math.min(pages, start + max - 1);
+    if (end - start < max - 1) start = Math.max(1, end - max + 1);
+    for (let i = start; i <= end; i++) {
+        const btn = document.createElement('button');
+        btn.textContent = i;
+        btn.className = `px-2.5 py-1.5 rounded-lg border text-xs font-medium transition-colors ${
+            i === page ? 'bg-slate-900 text-white border-slate-900' : 'border-slate-200 hover:bg-slate-50'
+        }`;
+        btn.disabled = (i === page);
+        btn.addEventListener('click', () => onGo(i));
+        el.appendChild(btn);
+    }
+}
+
+function renderFaskes() {
+    const list = faskes_.data;
+    const { page, pageSize } = faskes_;
+    const pages = Math.max(1, Math.ceil(list.length / pageSize));
+    const cur   = Math.min(page, pages);
+    faskes_.page = cur;
+    const slice = list.slice((cur - 1) * pageSize, cur * pageSize);
+
     document.getElementById('faskesCount').textContent = `${list.filter(f => f.isActive).length} aktif dari ${list.length}`;
-    document.getElementById('faskesTable').innerHTML = list.map(f => `
+    document.getElementById('faskesTable').innerHTML = slice.map(f => `
         <tr>
             <td class="td"><div class="font-semibold">${esc(f.name)}</div><div class="text-xs text-slate-400">${esc(f.area)}</div></td>
             <td class="td">${f.type === 'UDD' ? 'UDD PMI' : 'RS'}</td>
@@ -124,14 +182,30 @@ function renderFaskes(list) {
             <td class="td">${f._count.requests}</td>
             <td class="td">${toggleButton('faskes', f.id, f.isActive)}</td>
         </tr>`).join('');
+
+    const from = (cur - 1) * pageSize + 1;
+    const to   = Math.min(cur * pageSize, list.length);
+    document.getElementById('faskesInfo').textContent = list.length ? `${from}–${to} dari ${list.length} data` : 'Tidak ada data';
+    document.getElementById('faskesPrev').disabled = cur <= 1;
+    document.getElementById('faskesNext').disabled = cur >= pages;
+    pageButtons('faskesPages', cur, pages, (p) => { faskes_.page = p; renderFaskes(); });
+
+    // update select for user form
     const select = document.getElementById('userFaskes');
     const keep = select.value;
     select.innerHTML = list.filter(f => f.isActive).map(f => `<option value="${esc(f.id)}">${esc(f.name)}</option>`).join('');
     if (keep) select.value = keep;
 }
 
-function renderUsers(list) {
-    document.getElementById('usersTable').innerHTML = list.map(u => `
+function renderUsers() {
+    const list = users_.data;
+    const { page, pageSize } = users_;
+    const pages = Math.max(1, Math.ceil(list.length / pageSize));
+    const cur   = Math.min(page, pages);
+    users_.page = cur;
+    const slice = list.slice((cur - 1) * pageSize, cur * pageSize);
+
+    document.getElementById('usersTable').innerHTML = slice.map(u => `
         <tr>
             <td class="td"><div class="font-semibold">${esc(u.name)}</div><div class="text-xs text-slate-400">${esc(u.email)}</div></td>
             <td class="td">${u.role === 'SUPER_ADMIN' ? 'Super admin' : 'Petugas'}</td>
@@ -139,10 +213,17 @@ function renderUsers(list) {
             <td class="td text-xs">${u.lastLoginAt ? `${fmtDate(u.lastLoginAt)} ${fmtTime(u.lastLoginAt)}` : 'Belum pernah'}</td>
             <td class="td">${u.id === session.get('admin')?.user.id ? pill('Anda', 'blue') : toggleButton('user', u.id, u.isActive)}</td>
         </tr>`).join('');
+
+    const from = (cur - 1) * pageSize + 1;
+    const to   = Math.min(cur * pageSize, list.length);
+    document.getElementById('usersInfo').textContent = list.length ? `${from}–${to} dari ${list.length} data` : 'Tidak ada data';
+    document.getElementById('usersPrev').disabled = cur <= 1;
+    document.getElementById('usersNext').disabled = cur >= pages;
+    pageButtons('usersPages', cur, pages, (p) => { users_.page = p; renderUsers(); });
 }
 
 async function loadAudit() {
-    const result = await store.admin.audit(audit.page, audit.actor);
+    const result = await store.admin.audit(audit.page, audit.actor, audit.pageSize);
     audit.total = result.total;
     document.getElementById('auditTable').innerHTML = result.items.length ? result.items.map(a => `
         <tr>

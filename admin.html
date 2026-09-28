@@ -75,15 +75,36 @@
 
         <section class="grid grid-cols-1 lg:grid-cols-5 gap-6 items-start">
             <div class="lg:col-span-3 card overflow-hidden">
-                <div class="px-5 py-4 border-b border-slate-100 flex items-center justify-between">
+                <div class="px-5 py-4 border-b border-slate-100 flex flex-wrap items-center justify-between gap-3">
                     <h2 class="font-bold text-slate-800">Fasilitas Kesehatan</h2>
-                    <span id="faskesCount" class="text-xs text-slate-400"></span>
+                    <div class="flex items-center gap-3">
+                        <span id="faskesCount" class="text-xs text-slate-400"></span>
+                        <div class="flex items-center gap-1.5 text-xs text-slate-500">
+                            <label for="faskesPageSize">Tampilkan</label>
+                            <select id="faskesPageSize" class="border border-slate-200 rounded-lg px-2 py-1 text-xs font-medium text-slate-700 outline-none focus:border-brand-500">
+                                <option value="10">10</option>
+                                <option value="15" selected>15</option>
+                                <option value="20">20</option>
+                                <option value="25">25</option>
+                                <option value="30">30</option>
+                            </select>
+                            <span>data</span>
+                        </div>
+                    </div>
                 </div>
                 <div class="overflow-x-auto">
                     <table class="w-full min-w-[520px]">
                         <thead class="bg-slate-50"><tr><th class="th">Nama</th><th class="th">Jenis</th><th class="th">Akun</th><th class="th">Permintaan</th><th class="th">Status</th></tr></thead>
                         <tbody id="faskesTable" class="divide-y divide-slate-100"></tbody>
                     </table>
+                </div>
+                <div class="px-5 py-3 border-t border-slate-100 flex items-center justify-between text-sm">
+                    <span id="faskesInfo" class="text-xs text-slate-500"></span>
+                    <div class="flex gap-1.5">
+                        <button id="faskesPrev" class="px-3 py-1.5 rounded-lg border border-slate-200 text-xs font-medium disabled:opacity-40 hover:bg-slate-50 transition-colors"><i class="fa-solid fa-chevron-left"></i></button>
+                        <div id="faskesPages" class="flex gap-1"></div>
+                        <button id="faskesNext" class="px-3 py-1.5 rounded-lg border border-slate-200 text-xs font-medium disabled:opacity-40 hover:bg-slate-50 transition-colors"><i class="fa-solid fa-chevron-right"></i></button>
+                    </div>
                 </div>
             </div>
             <form id="faskesForm" class="lg:col-span-2 card p-5 space-y-3">
@@ -103,12 +124,33 @@
 
         <section class="grid grid-cols-1 lg:grid-cols-5 gap-6 items-start">
             <div class="lg:col-span-3 card overflow-hidden">
-                <div class="px-5 py-4 border-b border-slate-100"><h2 class="font-bold text-slate-800">Akun Petugas</h2></div>
+                <div class="px-5 py-4 border-b border-slate-100 flex flex-wrap items-center justify-between gap-3">
+                    <h2 class="font-bold text-slate-800">Akun Petugas</h2>
+                    <div class="flex items-center gap-1.5 text-xs text-slate-500">
+                        <label for="usersPageSize">Tampilkan</label>
+                        <select id="usersPageSize" class="border border-slate-200 rounded-lg px-2 py-1 text-xs font-medium text-slate-700 outline-none focus:border-brand-500">
+                            <option value="10">10</option>
+                            <option value="15" selected>15</option>
+                            <option value="20">20</option>
+                            <option value="25">25</option>
+                            <option value="30">30</option>
+                        </select>
+                        <span>data</span>
+                    </div>
+                </div>
                 <div class="overflow-x-auto">
                     <table class="w-full min-w-[520px]">
                         <thead class="bg-slate-50"><tr><th class="th">Nama / Email</th><th class="th">Peran</th><th class="th">Faskes</th><th class="th">Login terakhir</th><th class="th">Status</th></tr></thead>
                         <tbody id="usersTable" class="divide-y divide-slate-100"></tbody>
                     </table>
+                </div>
+                <div class="px-5 py-3 border-t border-slate-100 flex items-center justify-between text-sm">
+                    <span id="usersInfo" class="text-xs text-slate-500"></span>
+                    <div class="flex gap-1.5">
+                        <button id="usersPrev" class="px-3 py-1.5 rounded-lg border border-slate-200 text-xs font-medium disabled:opacity-40 hover:bg-slate-50 transition-colors"><i class="fa-solid fa-chevron-left"></i></button>
+                        <div id="usersPages" class="flex gap-1"></div>
+                        <button id="usersNext" class="px-3 py-1.5 rounded-lg border border-slate-200 text-xs font-medium disabled:opacity-40 hover:bg-slate-50 transition-colors"><i class="fa-solid fa-chevron-right"></i></button>
+                    </div>
                 </div>
             </div>
             <form id="userForm" class="lg:col-span-2 card p-5 space-y-3">
@@ -127,10 +169,23 @@
         <section class="card overflow-hidden">
             <div class="px-5 py-4 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                 <h2 class="font-bold text-slate-800">Audit Log</h2>
-                <form id="auditFilter" class="flex gap-2">
-                    <input id="auditActor" class="inp !py-2 w-48" placeholder="Filter aktor (staff:, pemohon:…)">
-                    <button class="btn-dark px-4 text-sm">Cari</button>
-                </form>
+                <div class="flex flex-wrap items-center gap-2">
+                    <form id="auditFilter" class="flex gap-2">
+                        <input id="auditActor" class="inp !py-2 w-40" placeholder="Filter aktor">
+                        <button class="btn-dark px-4 text-sm">Cari</button>
+                    </form>
+                    <div class="flex items-center gap-1.5 text-xs text-slate-500">
+                        <label for="auditPageSize">Tampilkan</label>
+                        <select id="auditPageSize" class="border border-slate-200 rounded-lg px-2 py-1 text-xs font-medium text-slate-700 outline-none focus:border-brand-500">
+                            <option value="10">10</option>
+                            <option value="15" selected>15</option>
+                            <option value="20">20</option>
+                            <option value="25">25</option>
+                            <option value="30">30</option>
+                        </select>
+                        <span>data</span>
+                    </div>
+                </div>
             </div>
             <div class="overflow-x-auto">
                 <table class="w-full min-w-[640px]">

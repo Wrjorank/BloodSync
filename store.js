@@ -168,7 +168,7 @@ const store = {
         users: () => api('GET', '/admin/users', { role: 'admin' }),
         createUser: (body) => api('POST', '/admin/users', { role: 'admin', body }),
         setUserActive: (id, isActive) => api('PATCH', `/admin/users/${id}/active`, { role: 'admin', body: { isActive } }),
-        audit: (page = 1, actor = '') => api('GET', `/admin/audit?page=${page}&pageSize=15${actor ? '&actor=' + encodeURIComponent(actor) : ''}`, { role: 'admin' })
+        audit: (page = 1, actor = '', pageSize = 15) => api('GET', `/admin/audit?page=${page}&pageSize=${pageSize}${actor ? '&actor=' + encodeURIComponent(actor) : ''}`, { role: 'admin' })
     },
 
     donor: {
