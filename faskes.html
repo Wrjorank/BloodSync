@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Petugas Faskes - Dasbor Operasional</title>
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 32 32%22%3E%3Crect width=%2232%22 height=%2232%22 rx=%228%22 fill=%22%23e11d48%22/%3E%3Cpath d=%22M16 6c-4 6-7 9.5-7 13a7 7 0 0 0 14 0c0-3.5-3-7-7-13z%22 fill=%22white%22/%3E%3C/svg%3E">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: { sans: ['"Plus Jakarta Sans"', 'sans-serif'] },
+                    colors: { brand: { 50: '#fff1f2', 100: '#ffe4e6', 200: '#fecdd3', 500: '#f43f5e', 600: '#e11d48', 700: '#be123c' } }
+                }
+            }
+        }
+    </script>
+    <style type="text/tailwindcss">
+        .lbl { @apply block text-xs font-bold text-slate-500 mb-1.5 uppercase tracking-wider; }
+        .inp { @apply w-full px-3 py-2.5 rounded-lg border border-slate-200 bg-white text-sm font-medium text-slate-800 outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-100; }
+        .btn-primary { @apply bg-brand-600 text-white font-semibold rounded-xl hover:bg-brand-700 transition-colors disabled:opacity-40 disabled:cursor-not-allowed; }
+        .btn-dark { @apply bg-slate-900 text-white font-semibold rounded-xl hover:bg-slate-800 transition-colors disabled:opacity-40; }
+        .btn-ghost { @apply bg-slate-100 text-slate-600 font-semibold rounded-xl hover:bg-slate-200 transition-colors; }
+    </style>
+</head>
+<body class="bg-slate-50 text-slate-800 h-screen flex overflow-hidden antialiased">
+
+    <!-- login: only verified faskes accounts reach the dashboard -->
+    <div id="loginView" class="fixed inset-0 z-50 bg-slate-900 flex items-center justify-center p-6">
+        <form id="loginForm" class="bg-white rounded-3xl p-8 w-full max-w-sm shadow-2xl space-y-4">
+            <div class="flex items-center gap-3 mb-2">
+                <div class="w-11 h-11 rounded-xl bg-brand-600 text-white flex items-center justify-center shadow-lg shadow-brand-500/30">
+                    <i class="fa-solid fa-hospital"></i>
+                </div>
+                <div>
+                    <h1 class="font-bold text-lg text-slate-900 leading-tight">Masuk Petugas Faskes</h1>
+                    <p class="text-xs text-slate-500">Akun RS / UDD PMI terverifikasi</p>
+                </div>
+            </div>
+            <div>
+                <label class="lbl" for="loginEmail">Email petugas</label>
+                <input id="loginEmail" type="email" required autocomplete="username" class="inp" placeholder="nama@faskes.id">
+            </div>
+            <div>
+                <label class="lbl" for="loginPassword">Kata sandi</label>
+                <input id="loginPassword" type="password" required autocomplete="current-password" class="inp" placeholder="••••••••">
+            </div>
+            <select id="demoAccount" class="inp text-xs text-slate-500">
+                <option value="">Masuk cepat sebagai…</option>
+                <option value="tarakan@bloodsync.id">RSUD Tarakan</option>
+                <option value="hermina@bloodsync.id">RS Hermina Jatinegara</option>
+                <option value="fatmawati@bloodsync.id">RSUP Fatmawati</option>
+                <option value="udd@bloodsync.id">UDD PMI DKI Jakarta</option>
+            </select>
+            <p id="loginError" class="hidden text-xs text-red-600 font-medium"></p>
+            <button class="btn-dark w-full py-3">Masuk</button>
+            <a href="index.html" class="block text-center text-xs text-slate-400 hover:text-slate-600">Kembali ke beranda</a>
+        </form>
+    </div>
+
+    <!-- sidebar -->
+    <aside class="w-64 bg-slate-900 text-white hidden md:flex flex-col shrink-0">
+        <div class="p-6 border-b border-slate-800 flex items-center gap-3">
+            <div class="w-8 h-8 rounded-lg bg-brand-600 flex items-center justify-center shadow-lg shadow-brand-500/30">
+                <i class="fa-solid fa-droplet text-sm"></i>
+            </div>
+            <span class="font-bold text-xl tracking-tight">BloodSync</span>
+        </div>
+        <nav class="p-4 flex-grow space-y-1">
+            <div class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3 mt-2">Menu Utama</div>
+            <a href="#stok" class="flex items-center gap-3 text-slate-300 hover:text-white hover:bg-slate-800 px-4 py-3 rounded-xl font-medium transition-colors">
+                <i class="fa-solid fa-border-all w-5"></i> Inventaris Darah
+            </a>
+            <a href="#permintaan" class="flex items-center gap-3 text-slate-300 hover:text-white hover:bg-slate-800 px-4 py-3 rounded-xl font-medium transition-colors">
+                <i class="fa-solid fa-file-waveform w-5"></i> Permintaan
+                <span id="navPending" class="hidden ml-auto bg-brand-600 text-white text-[11px] font-bold px-2 py-0.5 rounded-full"></span>
+            </a>
+            <a href="#pemindai" class="flex items-center gap-3 text-slate-300 hover:text-white hover:bg-slate-800 px-4 py-3 rounded-xl font-medium transition-colors">
+                <i class="fa-solid fa-qrcode w-5"></i> Pemindai Tiket
+            </a>
+            <a href="#pendonor" class="flex items-center gap-3 text-slate-300 hover:text-white hover:bg-slate-800 px-4 py-3 rounded-xl font-medium transition-colors">
+                <i class="fa-solid fa-users w-5"></i> Data Pendonor
+            </a>
+        </nav>
+        <div class="p-4 border-t border-slate-800 space-y-1">
+            <button id="btnLogout" class="w-full flex items-center gap-3 text-slate-400 hover:text-white px-4 py-2 rounded-lg font-medium transition-colors text-sm">
+                <i class="fa-solid fa-right-from-bracket w-5"></i> Keluar
+            </button>
+            <a href="index.html" class="flex items-center gap-3 text-slate-400 hover:text-white px-4 py-2 rounded-lg font-medium transition-colors text-sm">
+                <i class="fa-solid fa-arrow-left w-5"></i> Beranda
+            </a>
+        </div>
+    </aside>
+
+    <main class="flex-grow flex flex-col overflow-hidden">
+        <header class="bg-white border-b border-slate-200 h-16 flex items-center justify-between px-6 shrink-0">
+            <div>
+                <h1 id="faskesName" class="font-bold text-lg text-slate-800 leading-tight">Dasbor Operasional</h1>
+                <p id="faskesMeta" class="text-xs text-slate-500"></p>
+            </div>
+            <div class="flex items-center gap-4">
+                <span class="text-xs text-slate-500 hidden sm:flex items-center gap-1.5"><i class="fa-solid fa-circle text-[8px] text-green-500"></i> Tersinkronisasi</span>
+                <a href="#permintaan" class="relative text-slate-400 hover:text-slate-600">
+                    <i class="fa-regular fa-bell text-xl"></i>
+                    <span id="bellDot" class="hidden absolute -top-0.5 -right-0.5 w-2.5 h-2.5 bg-brand-500 rounded-full border-2 border-white"></span>
+                </a>
+            </div>
+        </header>
+
+        <div class="flex-grow overflow-y-auto p-6 space-y-8">
+
+            <section id="stok">
+                <div class="flex items-center justify-between mb-4">
+                    <h2 class="font-bold text-lg text-slate-800">Inventaris Darah Real-Time</h2>
+                    <div class="flex items-center gap-3 text-[11px] font-semibold text-slate-500">
+                        <span class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded bg-red-200"></span> Kosong</span>
+                        <span class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded bg-amber-200"></span> Menipis</span>
+                    </div>
+                </div>
+                <div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-2 overflow-x-auto" id="stockContainer"></div>
+                <details class="mt-3 bg-white rounded-2xl border border-slate-200 shadow-sm">
+                    <summary class="px-5 py-3 cursor-pointer font-semibold text-sm text-slate-600">Catat stok masuk / keluar</summary>
+                    <form id="adjustForm" class="px-5 pb-4 grid grid-cols-2 sm:grid-cols-5 gap-3 items-end">
+                        <label class="block"><span class="lbl">Komponen</span>
+                            <select name="component" class="inp"><option value="PRC">PRC</option><option value="TC">Trombosit</option><option value="WB">Whole Blood</option></select>
+                        </label>
+                        <label class="block"><span class="lbl">Golongan</span><select name="bloodType" id="adjustType" class="inp"></select></label>
+                        <label class="block"><span class="lbl">Jumlah (+/−)</span><input name="delta" type="number" required class="inp" placeholder="+3 atau -1"></label>
+                        <label class="block col-span-2 sm:col-span-1"><span class="lbl">Keterangan</span><input name="note" required minlength="3" class="inp" placeholder="Kiriman UDD / kedaluwarsa"></label>
+                        <button class="btn-dark py-2.5 text-sm col-span-2 sm:col-span-1">Simpan</button>
+                    </form>
+                </details>
+            </section>
+
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
+                <section id="permintaan" class="lg:col-span-2 space-y-4">
+                    <h2 class="font-bold text-lg text-slate-800">Permintaan Darurat Aktif</h2>
+                    <div id="requestsContainer" class="space-y-4"></div>
+                    <details class="bg-white rounded-2xl border border-slate-200 shadow-sm">
+                        <summary class="px-5 py-4 cursor-pointer font-semibold text-sm text-slate-600">Riwayat permintaan</summary>
+                        <div id="historyContainer" class="px-5 pb-4 divide-y divide-slate-100"></div>
+                    </details>
+                </section>
+
+                <aside class="space-y-6 lg:sticky lg:top-0">
+                    <section id="pemindai" class="bg-white rounded-2xl border border-slate-200 shadow-sm p-5">
+                        <h2 class="font-bold text-lg text-slate-800 mb-1">Pemindai Tiket Donor</h2>
+                        <p class="text-sm text-slate-500 mb-4">Pindai QR tiket saat pendonor tiba di UDD.</p>
+                        <form id="scanForm" class="flex gap-2">
+                            <div class="relative flex-grow">
+                                <i class="fa-solid fa-qrcode absolute left-3 top-1/2 -translate-y-1/2 text-slate-300"></i>
+                                <input id="scanCode" class="inp !pl-9 uppercase" placeholder="TKT-XXXXXX" autocomplete="off">
+                            </div>
+                            <button class="btn-dark px-4 text-sm">Pindai</button>
+                        </form>
+                        <div class="mt-5">
+                            <div class="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Pendonor menuju faskes ini</div>
+                            <div id="arrivalsContainer" class="space-y-2"></div>
+                        </div>
+                    </section>
+
+                    <section class="bg-white rounded-2xl border border-slate-200 shadow-sm p-5">
+                        <h2 class="font-bold text-slate-800 mb-3 flex items-center gap-2">Mutasi Antarfaskes <span id="transferBadge" class="hidden bg-amber-500 text-white text-[11px] font-bold px-2 py-0.5 rounded-full"></span></h2>
+                        <div id="transfersContainer" class="space-y-2"></div>
+                    </section>
+
+                    <section class="bg-white rounded-2xl border border-slate-200 shadow-sm p-5">
+                        <h2 class="font-bold text-slate-800 mb-3">Mutasi Stok Terakhir</h2>
+                        <div id="movementsContainer" class="space-y-2.5"></div>
+                    </section>
+                </aside>
+            </div>
+
+            <section id="pendonor">
+                <div class="flex items-center justify-between mb-4">
+                    <h2 class="font-bold text-lg text-slate-800">Pendonor Terdaftar (radius 15 km)</h2>
+                    <span id="poolSummary" class="text-sm text-slate-500"></span>
+                </div>
+                <div id="poolContainer" class="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-3"></div>
+            </section>
+        </div>
+    </main>
+
+    <!-- screening modal -->
+    <div id="screeningModal" class="hidden fixed inset-0 z-40 bg-slate-900/50 backdrop-blur-sm items-center justify-center p-4">
+        <div id="screeningBody" class="bg-white rounded-3xl w-full max-w-md p-6 shadow-2xl"></div>
+    </div>
+
+    <script src="store.js"></script>
+    <script src="ui.js"></script>
+    <script src="faskes.js"></script>
+</body>
+</html>

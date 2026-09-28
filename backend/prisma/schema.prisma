@@ -1,0 +1,333 @@
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+enum FaskesType {
+  RS
+  UDD
+}
+
+enum UserRole {
+  FASKES_STAFF
+  SUPER_ADMIN
+}
+
+enum Component {
+  PRC
+  TC
+  WB
+}
+
+enum Urgency {
+  KRITIS
+  MENDESAK
+  TERJADWAL
+}
+
+enum RequestStatus {
+  PENDING_VERIFICATION
+  APPROVED
+  BROADCASTING
+  FULFILLED
+  CLOSED
+  REJECTED
+  EXPIRED
+}
+
+enum TicketStatus {
+  INVITED
+  DECLINED
+  RESERVED
+  ARRIVED
+  SCREENED
+  SCREENING_FAILED
+  COLLECTED
+  NO_SHOW
+  CANCELLED
+  WITHDRAWN
+  QUOTA_FULL
+}
+
+enum TransferStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  CANCELLED
+}
+
+enum MovementKind {
+  IN
+  OUT
+  TRANSFER
+}
+
+model Faskes {
+  id        String   @id @default(uuid())
+  name      String
+  type      FaskesType
+  area      String
+  address   String?
+  lat       Float
+  lng       Float
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  users     User[]
+  stocks    Stock[]
+  movements StockMovement[]
+  transfersOut StockTransfer[] @relation("TransferSource")
+  transfersIn  StockTransfer[] @relation("TransferTarget")
+  requests  BloodRequest[]
+  donations Donation[]
+
+  @@map("faskes")
+}
+
+model User {
+  id           String   @id @default(uuid())
+  name         String
+  email        String   @unique
+  passwordHash String
+  role         UserRole @default(FASKES_STAFF)
+  faskesId     String?
+  faskes       Faskes?  @relation(fields: [faskesId], references: [id])
+  isActive     Boolean  @default(true)
+  lastLoginAt  DateTime?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([faskesId])
+  @@map("users")
+}
+
+model Stock {
+  id        String    @id @default(uuid())
+  faskesId  String
+  faskes    Faskes    @relation(fields: [faskesId], references: [id], onDelete: Cascade)
+  component Component
+  bloodType String    @db.VarChar(3)
+  quantity  Int       @default(0)
+  updatedAt DateTime  @updatedAt
+
+  @@unique([faskesId, component, bloodType])
+  @@map("stocks")
+}
+
+model StockMovement {
+  id        String       @id @default(uuid())
+  faskesId  String
+  faskes    Faskes       @relation(fields: [faskesId], references: [id], onDelete: Cascade)
+  component Component
+  bloodType String       @db.VarChar(3)
+  quantity  Int
+  kind      MovementKind
+  note      String
+  requestId String?
+  request   BloodRequest? @relation(fields: [requestId], references: [id], onDelete: SetNull)
+  createdAt DateTime     @default(now())
+
+  @@index([faskesId, createdAt])
+  @@map("stock_movements")
+}
+
+model Donor {
+  id             String    @id @default(uuid())
+  name           String
+  phone          String    @unique @db.VarChar(20)
+  bloodType      String    @db.VarChar(3)
+  area           String
+  lat            Float
+  lng            Float
+  lastDonationAt DateTime?
+  responseRate   Float     @default(0.5)
+  isSimulated    Boolean   @default(false)
+  isActive       Boolean   @default(true)
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  tickets   DonorTicket[]
+  donations Donation[]
+  badges    DonorBadge[]
+
+  @@index([bloodType, isActive])
+  @@index([lat, lng])
+  @@map("donors")
+}
+
+model DonorBadge {
+  donorId  String
+  donor    Donor    @relation(fields: [donorId], references: [id], onDelete: Cascade)
+  badgeId  String   @db.VarChar(20)
+  earnedAt DateTime @default(now())
+
+  @@id([donorId, badgeId])
+  @@map("donor_badges")
+}
+
+model Donation {
+  id          String    @id @default(uuid())
+  donorId     String
+  donor       Donor     @relation(fields: [donorId], references: [id], onDelete: Cascade)
+  faskesId    String?
+  faskes      Faskes?   @relation(fields: [faskesId], references: [id], onDelete: SetNull)
+  requestCode String?
+  component   Component
+  donatedAt   DateTime
+
+  @@index([donorId, donatedAt])
+  @@map("donations")
+}
+
+model BloodRequest {
+  id                 String        @id @default(uuid())
+  code               String        @unique @db.VarChar(12)
+  publicToken        String        @unique @db.VarChar(24)
+  status             RequestStatus @default(PENDING_VERIFICATION)
+  phone              String        @db.VarChar(20)
+  patientName        String
+  medicalRecordNo    String
+  ward               String
+  faskesId           String
+  faskes             Faskes        @relation(fields: [faskesId], references: [id])
+  bloodType          String        @db.VarChar(3)
+  component          Component
+  bagsNeeded         Int
+  urgency            Urgency
+  letterPath         String?
+  letterName         String?
+  letterMime         String?
+  allocatedFromStock Int           @default(0)
+  bagsCollected      Int           @default(0)
+  rejectReason       String?
+
+  dispatchStartedAt  DateTime?
+  radiusKm           Float?
+  wave               Int           @default(0)
+  waveStartedAt      DateTime?
+  escalateMinutes    Int?
+  deadline           DateTime?
+  allowCompatible    Boolean       @default(false)
+  maxedOut           Boolean       @default(false)
+
+  createdAt          DateTime      @default(now())
+  updatedAt          DateTime      @updatedAt
+
+  tickets   DonorTicket[]
+  waves     DispatchWave[]
+  events    RequestEvent[]
+  movements StockMovement[]
+  transfers StockTransfer[]
+
+  @@index([faskesId, status])
+  @@index([phone])
+  @@index([status])
+  @@map("blood_requests")
+}
+
+model DispatchWave {
+  id        String       @id @default(uuid())
+  requestId String
+  request   BloodRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  wave      Int
+  radiusKm  Float
+  inRadius  Int          @default(0)
+  typeMatch Int          @default(0)
+  eligible  Int          @default(0)
+  capped    Int          @default(0)
+  invited   Int          @default(0)
+  createdAt DateTime     @default(now())
+  updatedAt DateTime     @updatedAt
+
+  @@unique([requestId, wave])
+  @@map("dispatch_waves")
+}
+
+model DonorTicket {
+  id               String       @id @default(uuid())
+  code             String       @unique @db.VarChar(12)
+  requestId        String
+  request          BloodRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  donorId          String
+  donor            Donor        @relation(fields: [donorId], references: [id], onDelete: Cascade)
+  status           TicketStatus @default(INVITED)
+  wave             Int
+  distanceKm       Float
+  invitedAt        DateTime     @default(now())
+  alertCount       Int          @default(1)
+  respondedAt      DateTime?
+  etaMin           Int?
+  reservedUntil    DateTime?
+  arrivedAt        DateTime?
+  bpSystolic       Int?
+  bpDiastolic      Int?
+  hemoglobin       Float?
+  weightKg         Float?
+  screeningPass    Boolean?
+  screeningReasons Json?
+  screenedAt       DateTime?
+  collectedAt      DateTime?
+  newBadges        Json?
+  note             String?
+  acknowledgedAt   DateTime?
+  updatedAt        DateTime     @updatedAt
+
+  @@unique([requestId, donorId])
+  @@index([donorId, status])
+  @@index([status, reservedUntil])
+  @@map("donor_tickets")
+}
+
+model RequestEvent {
+  id        String       @id @default(uuid())
+  requestId String
+  request   BloodRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  text      String
+  createdAt DateTime     @default(now())
+
+  @@index([requestId, createdAt])
+  @@map("request_events")
+}
+
+model AuditLog {
+  id        String   @id @default(uuid())
+  actor     String
+  action    String
+  ref       String?
+  meta      Json?
+  ip        String?
+  createdAt DateTime @default(now())
+
+  @@index([createdAt])
+  @@index([actor])
+  @@map("audit_logs")
+}
+
+// inter-faskes transfer: the target faskes asks, the source faskes approves before any unit moves
+model StockTransfer {
+  id            String         @id @default(uuid())
+  requestId     String
+  request       BloodRequest   @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  fromFaskesId  String
+  fromFaskes    Faskes         @relation("TransferSource", fields: [fromFaskesId], references: [id])
+  toFaskesId    String
+  toFaskes      Faskes         @relation("TransferTarget", fields: [toFaskesId], references: [id])
+  quantity      Int
+  moved         Int            @default(0)
+  status        TransferStatus @default(PENDING)
+  requestedBy   String
+  decidedBy     String?
+  decidedAt     DateTime?
+  note          String?
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+
+  @@index([fromFaskesId, status])
+  @@index([toFaskesId, status])
+  @@map("stock_transfers")
+}
