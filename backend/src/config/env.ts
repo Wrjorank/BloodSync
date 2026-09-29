@@ -28,4 +28,7 @@ export const env = {
   // otp codes are returned in the api response only outside production, so the demo works without a whatsapp gateway
   exposeOtp: !isProduction && process.env.EXPOSE_OTP !== 'false',
   enableDemoRoutes: !isProduction && process.env.ENABLE_DEMO_ROUTES !== 'false',
+  // fonnte whatsapp gateway; without a token messages are only logged
+  fonnteToken: process.env.FONNTE_TOKEN || '',
+  waWebhookSecret: process.env.WA_WEBHOOK_SECRET || '',
 };

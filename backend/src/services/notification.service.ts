@@ -2,6 +2,7 @@ import { Server } from 'socket.io';
 import prisma from '../config/prisma';
 import { COMPONENT_LABEL } from '../constants/blood';
 import { maskPhone } from '../utils/helpers';
+import { env } from '../config/env';
 
 // changes collected inside a transaction and broadcast only after it commits
 export class Outbox {
@@ -22,18 +23,35 @@ export const rooms = {
   card: (token: string) => `card:${token}`,
 };
 
-// outbound channel adapters; swap the log lines for fcm / whatsapp business api in production
+// outbound channel adapters; swap the push log line for fcm in production
 const channels = {
   async push(donorId: string, title: string, body: string) {
     console.log(`[push] donor=${donorId} ${title} — ${body}`);
   },
   async whatsapp(phone: string, text: string) {
     console.log(`[whatsapp] ${maskPhone(phone)} ${text.replace(/\n/g, ' | ')}`);
+    if (!env.fonnteToken) return;
+    const res = await fetch('https://api.fonnte.com/send', {
+      method: 'POST',
+      headers: { Authorization: env.fonnteToken },
+      body: new URLSearchParams({ target: phone, message: text, countryCode: '62' }),
+      signal: AbortSignal.timeout(10000),
+    });
+    const body = await res.json().catch(() => ({})) as { status?: boolean; reason?: string };
+    if (!res.ok || body.status === false) throw new Error(`fonnte: ${body.reason || res.status}`);
   },
 };
 
+export const sendWhatsapp = (phone: string, text: string) => channels.whatsapp(phone, text);
+
 export async function sendOtpMessage(phone: string, code: string) {
-  await channels.whatsapp(phone, `Kode OTP BloodSync Anda ${code}. Berlaku 5 menit. Jangan bagikan kode ini.`);
+  try {
+    await channels.whatsapp(phone, `Kode OTP BloodSync Anda ${code}. Berlaku 5 menit. Jangan bagikan kode ini.`);
+  } catch (err) {
+    // the dev response already carries the code, so a gateway hiccup should not block the demo
+    if (!env.exposeOtp) throw err;
+    console.error('[whatsapp] gagal mengirim OTP', err);
+  }
 }
 
 export async function flush(outbox: Outbox) {
@@ -61,7 +79,9 @@ export async function flush(outbox: Outbox) {
         const text = `Panggilan Darurat: Pasien di ${r.faskes.name} butuh ${r.bagsNeeded} kantong ${COMPONENT_LABEL[r.component]} ${r.bloodType}. Jarak Anda ${t.distanceKm.toFixed(1).replace('.', ',')} km. Bersedia membantu?`;
         io?.to(rooms.donor(t.donorId)).emit('invite:new', { ticketId: t.id, requestId: r.id });
         await channels.push(t.donorId, 'Panggilan Darurat BloodSync', text);
-        await channels.whatsapp(t.donor.phone, `${text}\nBalas 1 = Siap Mendonor, 2 = Tidak Bisa`);
+        // one failed number must not stop the rest of the wave
+        await channels.whatsapp(t.donor.phone, `🩸 ${text}\n\nBalas *1* = Siap Mendonor\nBalas *2* = Tidak Bisa\n\nAtau buka ${env.publicAppUrl}/pendonor.html`)
+          .catch(err => console.error(`[whatsapp] gagal kirim undangan ${maskPhone(t.donor.phone)}`, err));
       }
     }
   } catch (err) {

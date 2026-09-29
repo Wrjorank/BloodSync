@@ -161,8 +161,16 @@ Hubungkan dengan `io(URL, { auth: { token } })`. Room dipilih dari token:
 | Keluarga | `request:updated` |
 | Siapa saja | `socket.emit('card:subscribe', publicToken)` → `request:updated` |
 
+## WhatsApp (Fonnte)
+
+1. Daftar di fonnte.com, tambahkan device dan scan QR dengan nomor WA pengirim.
+2. Salin token device ke `FONNTE_TOKEN`, isi `WA_WEBHOOK_SECRET` dengan string acak.
+3. Di pengaturan device Fonnte, set webhook ke `PUBLIC_APP_URL/api/webhooks/whatsapp?secret=<WA_WEBHOOK_SECRET>`. Untuk server lokal, buka dengan tunnel (mis. `ngrok http 5000`).
+
+Undangan panggilan darurat dan OTP dikirim lewat WA. Pendonor bisa membalas `1` (siap) atau `2` (tidak bisa); balasan diproses untuk undangan terbaru dan dijawab dengan kode tiket serta rute ke faskes. Tanpa token, pesan hanya dicatat di log.
+
 ## Produksi
 
 - Set `NODE_ENV=production`, `JWT_SECRET` wajib, `EXPOSE_OTP` dan rute demo otomatis mati.
-- Ganti adaptor `channels.push` / `channels.whatsapp` di `notification.service.ts` dengan FCM dan WhatsApp Business API.
+- Ganti adaptor `channels.push` di `notification.service.ts` dengan FCM. Untuk volume besar, pertimbangkan WhatsApp Business API resmi menggantikan Fonnte.
 - Simpan `uploads/` di storage privat (mis. S3 dengan signed URL) bila berjalan lebih dari satu instance.

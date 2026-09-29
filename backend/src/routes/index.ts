@@ -1,4 +1,4 @@
-import { Router } from 'express';
+import express, { Router } from 'express';
 import { env } from '../config/env';
 import { requireAdmin, requireDonor, requirePhone, requireStaff } from '../middlewares/auth';
 import { validate } from '../middlewares/validate';
@@ -11,6 +11,7 @@ import { familyController as family } from '../controllers/family.controller';
 import { faskesController as fk } from '../controllers/faskes.controller';
 import { donorController as donor } from '../controllers/donor.controller';
 import { adminController as admin } from '../controllers/admin.controller';
+import { webhookController as webhook } from '../controllers/webhook.controller';
 
 const router = Router();
 
@@ -18,6 +19,9 @@ const router = Router();
 router.post('/auth/staff/login', rateLimit('login', 10, 300), validate(s.staffLoginSchema), auth.staffLogin);
 router.post('/auth/otp/request', rateLimit('otp', 10, 600), validate(s.otpRequestSchema), auth.requestOtp);
 router.post('/auth/otp/verify', rateLimit('otp-verify', 20, 600), validate(s.otpVerifySchema), auth.verifyOtp);
+
+// ---------- webhooks (shared secret in the url) ----------
+router.post('/webhooks/whatsapp', express.urlencoded({ extended: false }), rateLimit('wa-webhook', 120, 60), webhook.whatsapp);
 
 // ---------- public (no auth) ----------
 router.get('/public/meta', pub.meta);
