@@ -240,3 +240,21 @@ async function downloadStory(s) {
     a.remove();
     setTimeout(() => URL.revokeObjectURL(a.href), 1000);
 }
+
+// hide the header while scrolling down, bring it back on any scroll up.
+// the header floats over the scroller and only slides, so the layout never shifts and short pages cannot flicker
+function autoHideHeader(header, scroller) {
+    if (!header || !scroller) return;
+    header.parentElement.style.position = 'relative';
+    Object.assign(header.style, { position: 'absolute', top: '0', left: '0', right: '0', zIndex: '20', transition: 'transform .25s ease' });
+    const pad = () => { scroller.style.paddingTop = `${header.offsetHeight}px`; };
+    pad();
+    new ResizeObserver(pad).observe(header);
+    let last = scroller.scrollTop;
+    scroller.addEventListener('scroll', () => {
+        const y = scroller.scrollTop;
+        if (y <= header.offsetHeight || y - last < -6) header.style.transform = '';
+        else if (y - last > 6) header.style.transform = 'translateY(-100%)';
+        last = y;
+    }, { passive: true });
+}

@@ -30,6 +30,8 @@ document.addEventListener('DOMContentLoaded', () => {
         d.querySelectorAll('[data-close]').forEach(b => b.addEventListener('click', () => d.close()));
         d.addEventListener('click', (e) => { if (e.target === d) d.close(); });
     });
+    const header = document.querySelector('main > header');
+    autoHideHeader(header, header.nextElementSibling);
     window.addEventListener('hashchange', () => showView(location.hash.slice(1)));
     showView(location.hash.slice(1));
 
@@ -66,6 +68,8 @@ const VIEWS = ['stok', 'permintaan', 'pemindai', 'pendonor'];
 
 function showView(name) {
     if (!VIEWS.includes(name)) name = 'stok';
+    // each view starts at the top, which also brings a hidden header back
+    document.querySelector('main > header')?.nextElementSibling?.scrollTo(0, 0);
     document.querySelectorAll('[data-panel]').forEach(p => p.classList.toggle('hidden', p.dataset.panel !== name));
     document.querySelectorAll('.nav-link, .tab-link').forEach(b => b.classList.toggle('active', b.dataset.view === name));
     document.getElementById('btnBack').classList.toggle('hidden', name === 'stok');
