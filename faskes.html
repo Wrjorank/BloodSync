@@ -19,11 +19,19 @@
         }
     </script>
     <style type="text/tailwindcss">
-        .lbl { @apply block text-xs font-bold text-slate-500 mb-1.5 uppercase tracking-wider; }
-        .inp { @apply w-full px-3 py-2.5 rounded-lg border border-slate-200 bg-white text-sm font-medium text-slate-800 outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-100; }
+        .lbl { @apply block text-xs font-semibold text-slate-600 mb-1.5; }
+        .inp { @apply w-full px-3 py-2.5 rounded-lg border border-slate-200 bg-white text-sm font-medium text-slate-800 outline-none placeholder:text-slate-400 focus:border-brand-500 focus:ring-2 focus:ring-brand-100; }
         .btn-primary { @apply bg-brand-600 text-white font-semibold rounded-xl hover:bg-brand-700 transition-colors disabled:opacity-40 disabled:cursor-not-allowed; }
         .btn-dark { @apply bg-slate-900 text-white font-semibold rounded-xl hover:bg-slate-800 transition-colors disabled:opacity-40; }
         .btn-ghost { @apply bg-slate-100 text-slate-600 font-semibold rounded-xl hover:bg-slate-200 transition-colors; }
+        .card { @apply bg-white rounded-2xl border border-slate-200 shadow-sm; }
+        .card-head { @apply px-5 py-4 border-b border-slate-100 flex items-center justify-between gap-3; }
+        .nav-link { @apply w-full flex items-center gap-3 text-slate-300 hover:text-white hover:bg-slate-800 px-4 py-3 rounded-xl font-medium transition-colors; }
+        .nav-link.active { @apply bg-slate-800 text-white; }
+        .nav-link.active i { @apply text-brand-500; }
+        .tab-link { @apply shrink-0 px-3 py-2 rounded-lg text-sm font-semibold text-slate-300 hover:text-white; }
+        .tab-link.active { @apply bg-white/10 text-white; }
+        dialog::backdrop { background: rgb(15 23 42 / 0.5); }
     </style>
 </head>
 <body class="bg-slate-50 text-slate-800 h-screen flex overflow-hidden antialiased">
@@ -61,128 +69,186 @@
         </form>
     </div>
 
-    <!-- sidebar -->
     <aside class="w-64 bg-slate-900 text-white hidden md:flex flex-col shrink-0">
         <div class="p-6 border-b border-slate-800 flex items-center gap-3">
-            <div class="w-8 h-8 rounded-lg bg-brand-600 flex items-center justify-center shadow-lg shadow-brand-500/30">
-                <i class="fa-solid fa-droplet text-sm"></i>
+            <div class="w-8 h-8 rounded-lg bg-brand-600 flex items-center justify-center shadow-lg shadow-brand-500/30"><i class="fa-solid fa-droplet text-sm"></i></div>
+            <div class="leading-tight">
+                <div class="font-bold text-xl tracking-tight">BloodSync</div>
+                <div class="text-[11px] text-slate-400 font-medium">Petugas Faskes</div>
             </div>
-            <span class="font-bold text-xl tracking-tight">BloodSync</span>
         </div>
         <nav class="p-4 flex-grow space-y-1">
             <div class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3 mt-2">Menu Utama</div>
-            <a href="#stok" class="flex items-center gap-3 text-slate-300 hover:text-white hover:bg-slate-800 px-4 py-3 rounded-xl font-medium transition-colors">
-                <i class="fa-solid fa-border-all w-5"></i> Inventaris Darah
-            </a>
-            <a href="#permintaan" class="flex items-center gap-3 text-slate-300 hover:text-white hover:bg-slate-800 px-4 py-3 rounded-xl font-medium transition-colors">
+            <button data-view="stok" class="nav-link"><i class="fa-solid fa-border-all w-5"></i> Inventaris Darah</button>
+            <button data-view="permintaan" class="nav-link">
                 <i class="fa-solid fa-file-waveform w-5"></i> Permintaan
                 <span id="navPending" class="hidden ml-auto bg-brand-600 text-white text-[11px] font-bold px-2 py-0.5 rounded-full"></span>
-            </a>
-            <a href="#pemindai" class="flex items-center gap-3 text-slate-300 hover:text-white hover:bg-slate-800 px-4 py-3 rounded-xl font-medium transition-colors">
-                <i class="fa-solid fa-qrcode w-5"></i> Pemindai Tiket
-            </a>
-            <a href="#pendonor" class="flex items-center gap-3 text-slate-300 hover:text-white hover:bg-slate-800 px-4 py-3 rounded-xl font-medium transition-colors">
-                <i class="fa-solid fa-users w-5"></i> Data Pendonor
-            </a>
+            </button>
+            <button data-view="pemindai" class="nav-link"><i class="fa-solid fa-qrcode w-5"></i> Pemindai Tiket</button>
+            <button data-view="pendonor" class="nav-link"><i class="fa-solid fa-users w-5"></i> Data Pendonor</button>
         </nav>
         <div class="p-4 border-t border-slate-800 space-y-1">
-            <a href="index.html" class="flex items-center gap-3 text-slate-400 hover:text-white px-4 py-2 rounded-lg font-medium transition-colors text-sm">
-                <i class="fa-solid fa-arrow-left w-5"></i> Beranda
-            </a>
-            <button id="btnLogout" class="w-full flex items-center gap-3 text-brand-500 hover:text-white hover:bg-brand-600 px-4 py-2 rounded-lg font-medium transition-colors text-sm">
-                <i class="fa-solid fa-right-from-bracket w-5"></i> Keluar
-            </button>
+            <div id="staffWho" class="px-4 pb-2 text-xs text-slate-400 truncate"></div>
+            <a href="index.html" class="flex items-center gap-3 text-slate-400 hover:text-white px-4 py-2 rounded-lg font-medium transition-colors text-sm"><i class="fa-solid fa-arrow-left w-5"></i> Beranda</a>
+            <button id="btnLogout" class="w-full flex items-center gap-3 text-brand-500 hover:text-white hover:bg-brand-600 px-4 py-2 rounded-lg font-medium transition-colors text-sm"><i class="fa-solid fa-right-from-bracket w-5"></i> Keluar</button>
         </div>
     </aside>
 
     <main class="flex-grow flex flex-col overflow-hidden">
-        <header class="bg-gradient-to-r from-slate-900 via-slate-800 to-slate-700 border-b border-slate-700 h-16 flex items-center justify-between px-6 shrink-0">
-            <div>
-                <h1 id="faskesName" class="font-bold text-lg text-white leading-tight">Dasbor Operasional</h1>
-                <p id="faskesMeta" class="text-xs text-slate-300"></p>
-            </div>
-            <div class="flex items-center gap-4">
-                <span class="text-xs text-slate-300 hidden sm:flex items-center gap-1.5"><i class="fa-solid fa-circle text-[8px] text-green-400"></i> Tersinkronisasi</span>
-                <a href="#permintaan" class="relative text-slate-400 hover:text-white">
-                    <i class="fa-regular fa-bell text-xl"></i>
-                    <span id="bellDot" class="hidden absolute -top-0.5 -right-0.5 w-2.5 h-2.5 bg-brand-500 rounded-full border-2 border-slate-800"></span>
-                </a>
-            </div>
-        </header>
-
-        <div class="flex-grow overflow-y-auto p-6 space-y-8">
-
-            <section id="stok">
-                <div class="flex items-center justify-between mb-4">
-                    <h2 class="font-bold text-lg text-slate-800">Inventaris Darah Real-Time</h2>
-                    <div class="flex items-center gap-3 text-[11px] font-semibold text-slate-500">
-                        <span class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded bg-red-200"></span> Kosong</span>
-                        <span class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded bg-amber-200"></span> Menipis</span>
+        <header class="bg-gradient-to-r from-slate-900 via-slate-800 to-slate-700 border-b border-slate-700 shrink-0">
+            <div class="h-16 flex items-center justify-between px-4 sm:px-6">
+                <div class="flex items-center gap-3 min-w-0">
+                    <button id="btnBack" data-view="stok" class="hidden w-9 h-9 shrink-0 rounded-lg border border-slate-600 text-slate-300 hover:bg-white/10 hover:text-white transition-colors" title="Kembali ke Inventaris" aria-label="Kembali"><i class="fa-solid fa-arrow-left"></i></button>
+                    <div class="min-w-0">
+                        <h1 id="faskesName" class="font-bold text-lg text-white leading-tight truncate">Dasbor Operasional</h1>
+                        <p id="faskesMeta" class="text-xs text-slate-300 truncate"></p>
                     </div>
                 </div>
-                <div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-2 overflow-x-auto" id="stockContainer"></div>
-                <details class="mt-3 bg-white rounded-2xl border border-slate-200 shadow-sm">
-                    <summary class="px-5 py-3 cursor-pointer font-semibold text-sm text-slate-600">Catat stok masuk / keluar</summary>
-                    <form id="adjustForm" class="px-5 pb-4 grid grid-cols-2 sm:grid-cols-5 gap-3 items-end">
-                        <label class="block"><span class="lbl">Komponen</span>
-                            <select name="component" class="inp"><option value="PRC">PRC</option><option value="TC">Trombosit</option><option value="WB">Whole Blood</option></select>
-                        </label>
-                        <label class="block"><span class="lbl">Golongan</span><select name="bloodType" id="adjustType" class="inp"></select></label>
-                        <label class="block"><span class="lbl">Jumlah (+/−)</span><input name="delta" type="number" required class="inp" placeholder="+3 atau -1"></label>
-                        <label class="block col-span-2 sm:col-span-1"><span class="lbl">Keterangan</span><input name="note" required minlength="3" class="inp" placeholder="Kiriman UDD / kedaluwarsa"></label>
-                        <button class="btn-dark py-2.5 text-sm col-span-2 sm:col-span-1">Simpan</button>
-                    </form>
-                </details>
-            </section>
+                <div class="flex items-center gap-4">
+                    <span class="text-xs text-slate-300 hidden sm:flex items-center gap-1.5"><i class="fa-solid fa-circle text-[8px] text-green-400"></i> <span id="syncedAt">Tersinkronisasi</span></span>
+                    <button data-view="permintaan" class="relative text-slate-300 hover:text-white" title="Permintaan masuk" aria-label="Permintaan masuk">
+                        <i class="fa-regular fa-bell text-xl"></i>
+                        <span id="bellDot" class="hidden absolute -top-0.5 -right-0.5 w-2.5 h-2.5 bg-brand-500 rounded-full border-2 border-slate-800"></span>
+                    </button>
+                    <button id="btnLogoutMobile" class="md:hidden w-9 h-9 rounded-lg text-slate-300 hover:bg-white/10 hover:text-white" title="Keluar"><i class="fa-solid fa-right-from-bracket"></i></button>
+                </div>
+            </div>
+            <nav class="md:hidden flex gap-1 overflow-x-auto px-4 pb-3">
+                <button data-view="stok" class="tab-link">Inventaris</button>
+                <button data-view="permintaan" class="tab-link">Permintaan</button>
+                <button data-view="pemindai" class="tab-link">Pemindai</button>
+                <button data-view="pendonor" class="tab-link">Pendonor</button>
+            </nav>
+        </header>
 
-            <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
-                <section id="permintaan" class="lg:col-span-2 space-y-4">
-                    <h2 class="font-bold text-lg text-slate-800">Permintaan Darurat Aktif</h2>
-                    <div id="requestsContainer" class="space-y-4"></div>
-                    <details class="bg-white rounded-2xl border border-slate-200 shadow-sm">
-                        <summary class="px-5 py-4 cursor-pointer font-semibold text-sm text-slate-600">Riwayat permintaan</summary>
-                        <div id="historyContainer" class="px-5 pb-4 divide-y divide-slate-100"></div>
-                    </details>
+        <div class="flex-grow overflow-y-auto">
+            <div class="w-full p-4 sm:p-6">
+
+                <!-- inventaris -->
+                <section data-panel="stok" class="space-y-5">
+                    <div class="flex flex-col sm:flex-row sm:items-end justify-between gap-3">
+                        <div>
+                            <h2 class="font-bold text-xl text-slate-900">Inventaris Darah</h2>
+                            <p class="text-sm text-slate-500">Stok per komponen & golongan, diperbarui otomatis.</p>
+                        </div>
+                        <button data-open="adjustDialog" class="btn-primary px-4 py-2.5 text-sm inline-flex items-center justify-center gap-2"><i class="fa-solid fa-plus-minus"></i> Catat stok masuk / keluar</button>
+                    </div>
+
+                    <div id="kpis" class="grid grid-cols-2 lg:grid-cols-4 gap-4"></div>
+
+                    <div class="grid grid-cols-1 xl:grid-cols-3 gap-5 items-start">
+                    <div class="card overflow-hidden xl:col-span-2">
+                        <div class="card-head">
+                            <h3 class="font-bold text-slate-800">Matriks Stok</h3>
+                            <div class="flex items-center gap-3 text-[11px] font-semibold text-slate-500">
+                                <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full bg-emerald-400"></span> Aman</span>
+                                <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full bg-amber-400"></span> Menipis</span>
+                                <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full bg-red-400"></span> Kosong</span>
+                            </div>
+                        </div>
+                        <div class="p-3 overflow-x-auto" id="stockContainer"></div>
+                    </div>
+
+                    <div class="card">
+                        <div class="card-head"><h3 class="font-bold text-slate-800">Mutasi Stok Terakhir</h3></div>
+                        <div id="movementsContainer" class="p-5 grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-1 gap-x-8 gap-y-3"></div>
+                    </div>
+                    </div>
                 </section>
 
-                <aside class="space-y-6 lg:sticky lg:top-0">
-                    <section id="pemindai" class="bg-white rounded-2xl border border-slate-200 shadow-sm p-5">
-                        <h2 class="font-bold text-lg text-slate-800 mb-1">Pemindai Tiket Donor</h2>
-                        <p class="text-sm text-slate-500 mb-4">Pindai QR tiket saat pendonor tiba di UDD.</p>
-                        <form id="scanForm" class="flex gap-2">
-                            <div class="relative flex-grow">
-                                <i class="fa-solid fa-qrcode absolute left-3 top-1/2 -translate-y-1/2 text-slate-300"></i>
-                                <input id="scanCode" class="inp !pl-9 uppercase" placeholder="TKT-XXXXXX" autocomplete="off">
-                            </div>
-                            <button class="btn-dark px-4 text-sm">Pindai</button>
-                        </form>
-                        <div class="mt-5">
-                            <div class="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Pendonor menuju faskes ini</div>
-                            <div id="arrivalsContainer" class="space-y-2"></div>
+                <!-- permintaan -->
+                <section data-panel="permintaan" class="hidden space-y-5">
+                    <div>
+                        <h2 class="font-bold text-xl text-slate-900">Permintaan Darurat</h2>
+                        <p class="text-sm text-slate-500">Verifikasi surat, penuhi dari stok, atau panggil pendonor terdekat.</p>
+                    </div>
+                    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
+                        <div class="lg:col-span-2 space-y-4">
+                            <div id="requestsContainer" class="space-y-4"></div>
+                            <details class="card group">
+                                <summary class="px-5 py-4 cursor-pointer font-semibold text-sm text-slate-700 flex items-center justify-between list-none">
+                                    <span><i class="fa-solid fa-clock-rotate-left text-slate-400 mr-2"></i>Riwayat permintaan</span>
+                                    <i class="fa-solid fa-chevron-down text-xs text-slate-400 transition-transform group-open:rotate-180"></i>
+                                </summary>
+                                <div id="historyContainer" class="px-5 pb-4 divide-y divide-slate-100"></div>
+                            </details>
                         </div>
-                    </section>
+                        <section class="card lg:sticky lg:top-0">
+                            <div class="card-head">
+                                <h3 class="font-bold text-slate-800 flex items-center gap-2">Mutasi Antarfaskes <span id="transferBadge" class="hidden bg-amber-500 text-white text-[11px] font-bold px-2 py-0.5 rounded-full"></span></h3>
+                            </div>
+                            <div id="transfersContainer" class="p-5 space-y-2"></div>
+                        </section>
+                    </div>
+                </section>
 
-                    <section class="bg-white rounded-2xl border border-slate-200 shadow-sm p-5">
-                        <h2 class="font-bold text-slate-800 mb-3 flex items-center gap-2">Mutasi Antarfaskes <span id="transferBadge" class="hidden bg-amber-500 text-white text-[11px] font-bold px-2 py-0.5 rounded-full"></span></h2>
-                        <div id="transfersContainer" class="space-y-2"></div>
-                    </section>
+                <!-- pemindai -->
+                <section data-panel="pemindai" class="hidden space-y-5">
+                    <div>
+                        <h2 class="font-bold text-xl text-slate-900">Pemindai Tiket</h2>
+                        <p class="text-sm text-slate-500">Pindai QR tiket saat pendonor tiba untuk memulai skrining.</p>
+                    </div>
+                    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
+                        <div class="card p-6">
+                            <div class="w-12 h-12 rounded-xl bg-brand-50 text-brand-600 flex items-center justify-center text-xl mb-4"><i class="fa-solid fa-qrcode"></i></div>
+                            <h3 class="font-bold text-slate-800">Masukkan kode tiket</h3>
+                            <p class="text-sm text-slate-500 mb-4">Gunakan pemindai QR atau ketik kode yang tertera di tiket pendonor.</p>
+                            <form id="scanForm" class="flex gap-2">
+                                <div class="relative flex-grow">
+                                    <i class="fa-solid fa-ticket absolute left-3 top-1/2 -translate-y-1/2 text-slate-300"></i>
+                                    <input id="scanCode" class="inp !pl-9 !py-3 uppercase tracking-wider" placeholder="TKT-XXXXXX" autocomplete="off">
+                                </div>
+                                <button class="btn-dark px-5 text-sm">Pindai</button>
+                            </form>
+                        </div>
+                        <div class="card">
+                            <div class="card-head">
+                                <h3 class="font-bold text-slate-800">Pendonor menuju faskes ini</h3>
+                            </div>
+                            <div id="arrivalsContainer" class="p-5 space-y-2"></div>
+                        </div>
+                    </div>
+                </section>
 
-                    <section class="bg-white rounded-2xl border border-slate-200 shadow-sm p-5">
-                        <h2 class="font-bold text-slate-800 mb-3">Mutasi Stok Terakhir</h2>
-                        <div id="movementsContainer" class="space-y-2.5"></div>
-                    </section>
-                </aside>
+                <!-- pendonor -->
+                <section data-panel="pendonor" class="hidden space-y-5">
+                    <div class="flex flex-col sm:flex-row sm:items-end justify-between gap-2">
+                        <div>
+                            <h2 class="font-bold text-xl text-slate-900">Data Pendonor</h2>
+                            <p class="text-sm text-slate-500">Pendonor terdaftar dalam radius 15 km dari faskes.</p>
+                        </div>
+                        <span id="poolSummary" class="text-sm font-semibold text-slate-600"></span>
+                    </div>
+                    <div id="poolContainer" class="grid grid-cols-2 sm:grid-cols-4 gap-4"></div>
+                </section>
+
             </div>
-
-            <section id="pendonor">
-                <div class="flex items-center justify-between mb-4">
-                    <h2 class="font-bold text-lg text-slate-800">Pendonor Terdaftar (radius 15 km)</h2>
-                    <span id="poolSummary" class="text-sm text-slate-500"></span>
-                </div>
-                <div id="poolContainer" class="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-3"></div>
-            </section>
         </div>
     </main>
+
+    <dialog id="adjustDialog" class="rounded-2xl p-0 w-[calc(100%-2rem)] max-w-lg shadow-2xl">
+        <form id="adjustForm" class="p-6 space-y-4">
+            <div class="flex items-start justify-between">
+                <div>
+                    <h2 class="font-bold text-lg text-slate-900">Catat Stok</h2>
+                    <p class="text-xs text-slate-500">Isi angka positif untuk stok masuk, negatif untuk keluar.</p>
+                </div>
+                <button type="button" data-close class="w-8 h-8 rounded-lg text-slate-400 hover:bg-slate-100" aria-label="Tutup"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <div class="grid grid-cols-2 gap-3">
+                <label class="block"><span class="lbl">Komponen</span>
+                    <select name="component" class="inp"><option value="PRC">PRC</option><option value="TC">Trombosit</option><option value="WB">Whole Blood</option></select>
+                </label>
+                <label class="block"><span class="lbl">Golongan</span><select name="bloodType" id="adjustType" class="inp"></select></label>
+            </div>
+            <label class="block"><span class="lbl">Jumlah kantong (+/−)</span><input name="delta" type="number" required class="inp" placeholder="+3 atau -1"></label>
+            <label class="block"><span class="lbl">Keterangan</span><input name="note" required minlength="3" class="inp" placeholder="Kiriman UDD / kedaluwarsa"></label>
+            <div class="flex justify-end gap-2 pt-2">
+                <button type="button" data-close class="btn-ghost px-4 py-2.5 text-sm">Batal</button>
+                <button class="btn-primary px-5 py-2.5 text-sm">Simpan</button>
+            </div>
+        </form>
+    </dialog>
 
     <!-- screening modal -->
     <div id="screeningModal" class="hidden fixed inset-0 z-40 bg-slate-900/50 backdrop-blur-sm items-center justify-center p-4">
@@ -192,29 +258,5 @@
     <script src="store.js"></script>
     <script src="ui.js"></script>
     <script src="faskes.js"></script>
-    <script>
-        // Sidebar Active State
-        const navLinks = document.querySelectorAll('aside nav a[href^="#"]');
-        
-        function setActive(link) {
-            navLinks.forEach(l => {
-                l.classList.remove('bg-slate-800', 'text-white', 'font-bold');
-                l.classList.add('text-slate-300');
-            });
-            link.classList.remove('text-slate-300');
-            link.classList.add('bg-slate-800', 'text-white', 'font-bold');
-        }
-
-        navLinks.forEach(link => {
-            link.addEventListener('click', function() {
-                setActive(this);
-            });
-        });
-        
-        // Set initial active state based on hash or default to first
-        const currentHash = window.location.hash;
-        const activeLink = Array.from(navLinks).find(l => l.getAttribute('href') === currentHash) || navLinks[0];
-        if (activeLink) setActive(activeLink);
-    </script>
 </body>
 </html>

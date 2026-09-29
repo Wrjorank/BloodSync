@@ -21,6 +21,17 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('loginPassword').value = 'Petugas#1234';
     });
     document.getElementById('btnLogout').addEventListener('click', logout);
+    document.getElementById('btnLogoutMobile').addEventListener('click', logout);
+
+    document.querySelectorAll('[data-view]').forEach(b => b.addEventListener('click', () => showView(b.dataset.view)));
+    document.querySelectorAll('[data-open]').forEach(b => b.addEventListener('click', () => document.getElementById(b.dataset.open).showModal()));
+    document.querySelectorAll('dialog').forEach(d => {
+        d.querySelectorAll('[data-close]').forEach(b => b.addEventListener('click', () => d.close()));
+        d.addEventListener('click', (e) => { if (e.target === d) d.close(); });
+    });
+    window.addEventListener('hashchange', () => showView(location.hash.slice(1)));
+    showView(location.hash.slice(1));
+
     document.getElementById('scanForm').addEventListener('submit', (e) => {
         e.preventDefault();
         scan(document.getElementById('scanCode').value);
@@ -49,6 +60,17 @@ document.addEventListener('DOMContentLoaded', () => {
     else showLogin(true);
 });
 
+const VIEWS = ['stok', 'permintaan', 'pemindai', 'pendonor'];
+
+function showView(name) {
+    if (!VIEWS.includes(name)) name = 'stok';
+    document.querySelectorAll('[data-panel]').forEach(p => p.classList.toggle('hidden', p.dataset.panel !== name));
+    document.querySelectorAll('.nav-link, .tab-link').forEach(b => b.classList.toggle('active', b.dataset.view === name));
+    document.getElementById('btnBack').classList.toggle('hidden', name === 'stok');
+    if (location.hash.slice(1) !== name) history.replaceState(null, '', `#${name}`);
+    if (name === 'pemindai') document.getElementById('scanCode').focus();
+}
+
 function showLogin(show) {
     document.getElementById('loginView').classList.toggle('hidden', !show);
 }
@@ -76,6 +98,7 @@ function logout() {
 
 function start() {
     showLogin(false);
+    document.getElementById('staffWho').textContent = session.get('staff')?.user?.email || '';
     ui.lastPending = null;
     ui.unsubscribe?.();
     ui.unsubscribe = subscribe('staff', load);
@@ -122,39 +145,73 @@ function render() {
     const f = data.faskes;
     document.getElementById('faskesName').textContent = f.name;
     document.getElementById('faskesMeta').textContent = `${f.type === 'UDD' ? 'Unit Donor Darah' : 'Rumah Sakit'} • ${f.area}`;
+    renderKpis();
     renderStock();
     renderRequests();
     renderArrivals();
     renderTransfers();
     renderMovements();
     renderDonorPool();
+    document.getElementById('syncedAt').textContent = `Diperbarui ${fmtTime(Date.now())}`;
+}
+
+function kpi(label, value, hint, icon, tone, view) {
+    return `
+        <button ${view ? `data-go="${view}"` : 'disabled'} class="card p-4 sm:p-5 flex flex-col sm:flex-row items-start gap-3 sm:gap-4 text-left ${view ? 'hover:border-slate-300 transition-colors' : 'cursor-default'}">
+            <div class="w-10 h-10 sm:w-11 sm:h-11 shrink-0 rounded-xl ${tone} flex items-center justify-center"><i class="fa-solid ${icon}"></i></div>
+            <div class="min-w-0">
+                <div class="text-xs font-semibold text-slate-500">${label}</div>
+                <div class="text-2xl font-extrabold text-slate-900 leading-tight mt-0.5">${value}</div>
+                <div class="text-xs text-slate-400 mt-0.5">${hint}</div>
+            </div>
+        </button>`;
+}
+
+function renderKpis() {
+    const cells = data.stock.flatMap(row => BLOOD_TYPES.map(t => row.byType[t]));
+    const total = data.stock.reduce((s, r) => s + r.total, 0);
+    const empty = cells.filter(q => q === 0).length;
+    const low = cells.filter(q => q > 0 && q < LOW_STOCK).length;
+    const pending = data.active.filter(r => r.status === 'PENDING_VERIFICATION').length;
+    const el = document.getElementById('kpis');
+    el.innerHTML = [
+        kpi('Total stok', total, 'kantong tersedia', 'fa-droplet', 'bg-brand-50 text-brand-600'),
+        kpi('Stok kosong', empty, `dari ${cells.length} kombinasi`, 'fa-circle-exclamation', 'bg-red-50 text-red-600'),
+        kpi('Stok menipis', low, `di bawah ${LOW_STOCK} kantong`, 'fa-triangle-exclamation', 'bg-amber-50 text-amber-600'),
+        kpi('Permintaan aktif', data.active.length, pending ? `${pending} menunggu verifikasi` : 'tidak ada yang menunggu', 'fa-file-waveform', 'bg-blue-50 text-blue-600', 'permintaan')
+    ].join('');
+    el.querySelectorAll('[data-go]').forEach(b => b.addEventListener('click', () => showView(b.dataset.go)));
 }
 
 // stock matrix: component x ABO/Rh
 function renderStock() {
-    const head = BLOOD_TYPES.map(t => `<th class="px-2 py-2 text-center text-sm font-bold text-slate-500">${t}</th>`).join('');
+    const head = BLOOD_TYPES.map(t => `<th class="px-1 pb-2 text-center text-xs font-bold text-slate-500">${t}</th>`).join('');
     const rows = data.stock.map(row => {
         const cells = BLOOD_TYPES.map(type => {
             const qty = row.byType[type];
-            const tone = qty === 0 ? 'bg-red-50 text-red-600 border-red-100'
-                : qty < LOW_STOCK ? 'bg-amber-50 text-amber-700 border-amber-100'
-                : 'bg-slate-50 text-slate-800 border-slate-100';
-            return `<td class="px-1.5 py-1.5"><div class="${tone} border rounded-xl py-2.5 text-center font-extrabold text-xl">${qty}</div></td>`;
+            const tone = qty === 0 ? 'bg-red-50 text-red-600 ring-red-100'
+                : qty < LOW_STOCK ? 'bg-amber-50 text-amber-700 ring-amber-100'
+                : 'bg-emerald-50 text-emerald-700 ring-emerald-100';
+            return `<td class="p-1"><div class="${tone} ring-1 ring-inset rounded-xl h-12 flex items-center justify-center font-extrabold text-lg" title="${esc(row.label)} ${type}: ${qty} kantong">${qty}</div></td>`;
         }).join('');
         return `
             <tr>
-                <th class="px-3 py-1.5 text-left whitespace-nowrap">
-                    <div class="font-bold text-slate-700 text-sm">${esc(row.label)}</div>
+                <th class="sticky left-0 z-10 bg-white pl-2 pr-4 py-1 text-left whitespace-nowrap w-36">
+                    <div class="font-bold text-slate-800 text-sm">${esc(row.label)}</div>
                     <div class="text-[11px] font-medium text-slate-400">${row.total} kantong</div>
                 </th>
                 ${cells}
             </tr>`;
     }).join('');
     document.getElementById('stockContainer').innerHTML = `
-        <table class="w-full min-w-[680px]">
-            <thead><tr><th></th>${head}</tr></thead>
+        <table class="w-full min-w-[640px] table-fixed">
+            <thead><tr><th class="sticky left-0 z-10 bg-white w-36"></th>${head}</tr></thead>
             <tbody>${rows}</tbody>
         </table>`;
+}
+
+function emptyState(icon, text) {
+    return `<div class="py-6 text-center text-sm text-slate-400"><i class="fa-solid ${icon} text-2xl text-slate-300 mb-2 block"></i>${text}</div>`;
 }
 
 function renderRequests() {
@@ -167,9 +224,10 @@ function renderRequests() {
     document.getElementById('bellDot').classList.toggle('hidden', pending === 0);
 
     document.getElementById('requestsContainer').innerHTML = data.active.length ? data.active.map(requestCard).join('') : `
-        <div class="bg-white rounded-2xl border border-slate-200 p-8 text-center text-slate-500">
-            <i class="fa-regular fa-folder-open text-3xl mb-3 text-slate-300"></i>
-            <p>Belum ada permintaan darurat aktif.</p>
+        <div class="bg-white rounded-2xl border border-dashed border-slate-300 p-10 text-center">
+            <div class="w-14 h-14 mx-auto rounded-full bg-emerald-50 text-emerald-500 flex items-center justify-center text-xl mb-3"><i class="fa-solid fa-check"></i></div>
+            <p class="font-semibold text-slate-700">Tidak ada permintaan darurat aktif</p>
+            <p class="text-sm text-slate-400 mt-1">Pengajuan baru akan muncul di sini beserta notifikasi.</p>
         </div>`;
 
     document.getElementById('historyContainer').innerHTML = data.history.length ? data.history.map(req => `
@@ -461,7 +519,10 @@ async function onAdjust(e) {
     const f = new FormData(e.target);
     const body = { component: f.get('component'), bloodType: f.get('bloodType'), delta: Number(f.get('delta')), note: String(f.get('note')).trim() };
     const ok = await act(() => store.staff.adjustStock(body), r => `Stok ${body.component} ${body.bloodType} sekarang ${r.quantity} kantong.`);
-    if (ok) e.target.reset();
+    if (ok) {
+        e.target.reset();
+        document.getElementById('adjustDialog').close();
+    }
 }
 
 function renderArrivals() {
@@ -472,7 +533,7 @@ function renderArrivals() {
                 <div class="text-[11px] text-slate-500">${t.code} • ${t.status === 'RESERVED' ? `ETA ${t.etaMin} mnt` : TICKET_STATUS[t.status]}</div>
             </div>
             <i class="fa-solid fa-qrcode text-slate-400"></i>
-        </button>`).join('') : '<p class="text-sm text-slate-400">Belum ada pendonor dalam perjalanan.</p>';
+        </button>`).join('') : emptyState('fa-person-walking', 'Belum ada pendonor dalam perjalanan.');
 }
 
 // scanning an already-arrived ticket just reopens it, so this also serves as "open screening"
@@ -604,7 +665,7 @@ function renderTransfers() {
             ${pill(label[t.status], tone[t.status])}
         </div>`).join('');
     document.getElementById('transfersContainer').innerHTML =
-        (inHtml || '<p class="text-sm text-slate-400">Tidak ada permintaan mutasi masuk.</p>') +
+        (inHtml || emptyState('fa-right-left', 'Tidak ada permintaan mutasi masuk.')) +
         (outHtml ? `<div class="pt-3 mt-3 border-t border-slate-100 space-y-2"><div class="text-[11px] font-bold uppercase tracking-wider text-slate-400">Permintaan kita</div>${outHtml}</div>` : '');
     const badge = document.getElementById('transferBadge');
     badge.textContent = incoming.length;
@@ -638,18 +699,24 @@ function renderMovements() {
                 </div>
                 <span class="text-[11px] text-slate-400 shrink-0">${fmtTime(m.createdAt)}</span>
             </div>`;
-    }).join('') : '<p class="text-sm text-slate-400">Belum ada mutasi.</p>';
+    }).join('') : `<div class="sm:col-span-2 xl:col-span-1">${emptyState('fa-box-open', 'Belum ada mutasi stok.')}</div>`;
 }
 
 function renderDonorPool() {
     const pool = data.pool;
     document.getElementById('poolSummary').textContent = `${pool.total} terdaftar • ${pool.eligible} siap donor`;
-    document.getElementById('poolContainer').innerHTML = pool.byType.map(t => `
-        <div class="bg-white rounded-2xl border border-slate-200 p-3 text-center shadow-sm">
-            <div class="font-bold text-slate-500 text-sm">${t.bloodType}</div>
-            <div class="text-2xl font-extrabold text-slate-900 mt-1">${t.eligible}<span class="text-sm text-slate-400 font-semibold">/${t.total}</span></div>
-            <div class="text-[10px] uppercase font-bold tracking-wider text-slate-400 mt-0.5">siap donor</div>
-        </div>`).join('');
+    document.getElementById('poolContainer').innerHTML = pool.byType.map(t => {
+        const pct = t.total ? Math.round((t.eligible / t.total) * 100) : 0;
+        return `
+        <div class="card p-4">
+            <div class="flex items-center justify-between">
+                <div class="w-10 h-10 rounded-xl bg-brand-50 border border-brand-100 text-brand-600 flex items-center justify-center font-extrabold">${t.bloodType}</div>
+                <span class="text-xs text-slate-400">${t.total} terdaftar</span>
+            </div>
+            <div class="mt-3 text-2xl font-extrabold text-slate-900">${t.eligible} <span class="text-sm font-semibold text-slate-400">siap donor</span></div>
+            <div class="mt-2 h-1.5 rounded-full bg-slate-100 overflow-hidden"><div class="h-full bg-emerald-500 rounded-full" style="width:${pct}%"></div></div>
+        </div>`;
+    }).join('');
 }
 
 // screening limits shown in the form (refreshed from /public/meta); the server re-checks them
