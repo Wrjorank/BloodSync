@@ -10,6 +10,8 @@ export interface RegisterDonorInput {
   name: string;
   bloodType: string;
   area: string;
+  lat?: number;
+  lng?: number;
   lastDonationAt?: Date | null;
 }
 
@@ -23,6 +25,16 @@ function locate(area: string) {
   return { lat: point[0] + jitter(), lng: point[1] + jitter() };
 }
 
+// label a gps fix with the nearest known kecamatan; far outside the list the previous label stays
+function nearestArea(point: { lat: number; lng: number }, fallback: string) {
+  let best = fallback, bestKm = 10;
+  for (const [name, [lat, lng]] of Object.entries(AREAS)) {
+    const km = distanceKm(point, { lat, lng });
+    if (km < bestKm) { best = name; bestKm = km; }
+  }
+  return best;
+}
+
 export const donorService = {
   async register(phone: string, input: RegisterDonorInput) {
     // the date input is a calendar day; compare it to today's date in WIB, not to the current instant in UTC
@@ -31,7 +43,12 @@ export const donorService = {
     if (await prisma.donor.findUnique({ where: { phone } })) throw conflict('Nomor sudah terdaftar, silakan masuk', 'DONOR_EXISTS');
     const donor = await runInTx(async tx => {
       const created = await tx.donor.create({
-        data: { name: input.name, phone, bloodType: input.bloodType, area: input.area, ...locate(input.area), lastDonationAt: input.lastDonationAt || null },
+        data: {
+          name: input.name, phone, bloodType: input.bloodType, area: input.area,
+          // a real gps fix beats the kecamatan centroid
+          ...(input.lat !== undefined && input.lng !== undefined ? { lat: input.lat, lng: input.lng } : locate(input.area)),
+          lastDonationAt: input.lastDonationAt || null,
+        },
       });
       if (input.lastDonationAt) {
         await tx.donation.create({ data: { donorId: created.id, component: 'WB', donatedAt: input.lastDonationAt } });
@@ -128,6 +145,13 @@ export const donorService = {
 
   async updateArea(donorId: string, area: string) {
     const donor = await prisma.donor.update({ where: { id: donorId }, data: { area, ...locate(area) } });
+    return { area: donor.area };
+  },
+
+  async updateLocation(donorId: string, point: { lat: number; lng: number }) {
+    const current = await prisma.donor.findUnique({ where: { id: donorId }, select: { area: true } });
+    if (!current) throw notFound('Pendonor tidak ditemukan');
+    const donor = await prisma.donor.update({ where: { id: donorId }, data: { lat: point.lat, lng: point.lng, area: nearestArea(point, current.area) } });
     return { area: donor.area };
   },
 

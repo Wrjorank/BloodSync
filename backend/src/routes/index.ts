@@ -71,6 +71,7 @@ const dn = Router();
 dn.use(requireDonor);
 dn.get('/', donor.dashboard);
 dn.patch('/area', validate(s.updateAreaSchema), donor.updateArea);
+dn.patch('/location', rateLimit('donor-location', 20, 3600), validate(s.updateLocationSchema), donor.updateLocation);
 dn.delete('/', donor.deactivate);
 dn.post('/reactivate', donor.reactivate);
 dn.post('/tickets/:id/respond', validate(s.respondSchema), donor.respond);

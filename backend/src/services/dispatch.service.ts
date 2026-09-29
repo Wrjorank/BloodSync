@@ -81,6 +81,7 @@ export function publicState(req: BloodRequest, p: Progress) {
   if (req.status === 'FULFILLED') return 'FULFILLED';
   if (req.status === 'CLOSED' || req.status === 'REJECTED') return 'CLOSED';
   if (req.status === 'EXPIRED') return 'EXPIRED';
+  if (req.status === 'APPROVED') return 'VERIFIED';
   if (req.status !== 'BROADCASTING') return 'PENDING';
   return p.uncovered > 0 ? 'OPEN' : 'QUOTA_FULL';
 }
@@ -95,6 +96,7 @@ export async function setStatus(tx: Tx, req: BloodRequest, status: RequestStatus
   await addEvent(tx, req.id, text);
   outbox.requests.add(req.id);
   outbox.faskes.add(req.faskesId);
+  if (status === 'APPROVED' || status === 'FULFILLED') outbox.familyNotices.set(req.id, status);
 }
 
 export async function releaseTickets(tx: Tx, requestId: string, from: TicketStatus[], to: TicketStatus, outbox: Outbox, note?: string) {

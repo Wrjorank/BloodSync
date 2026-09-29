@@ -1,5 +1,6 @@
 // kartu.js — public emergency card; status is read live from the api, so a forwarded link can never go stale
 const STATE = {
+    VERIFIED: ['TERVERIFIKASI', 'bg-blue-50 border-blue-200 text-blue-800', 'fa-circle-check', 'Kebutuhan ini sudah diverifikasi faskes. Petugas sedang mengecek stok; bila kurang, panggilan donor akan dibuka di kartu ini. Pantau statusnya sebelum datang.'],
     OPEN: ['DIBUKA', 'bg-green-50 border-green-200 text-green-800', 'fa-circle-dot', 'Masih membutuhkan pendonor. Pastikan Anda sehat, lalu datang ke UDD faskes.'],
     QUOTA_FULL: ['KUOTA PENUH', 'bg-amber-50 border-amber-200 text-amber-800', 'fa-person-walking-arrow-right', 'Pendonor yang dibutuhkan sudah dalam perjalanan. Mohon jangan datang dulu.'],
     FULFILLED: ['CLOSED', 'bg-slate-100 border-slate-200 text-slate-700', 'fa-lock', 'Kebutuhan sudah terpenuhi. Mohon hentikan penyebaran pesan ini.'],
@@ -76,6 +77,10 @@ async function render(token) {
                         Saya bisa donor <i class="fa-solid fa-arrow-right ml-1"></i>
                     </a>
                     <p class="text-[11px] text-slate-400 text-center">Daftar dulu agar slot Anda dikunci dan tidak datang sia-sia.</p>` : ''}
+                ${locked ? '' : `
+                    <button id="btnStory" class="w-full flex items-center justify-center gap-2 border border-slate-200 text-slate-700 font-semibold py-3 rounded-xl hover:bg-slate-50 text-sm">
+                        <i class="fa-solid fa-image text-brand-600"></i> Unduh gambar story
+                    </button>`}
             </div>
 
             ${locked ? `
@@ -84,6 +89,11 @@ async function render(token) {
                 </div>` : ''}
         </article>`;
     renderQR(document.getElementById('cardQr'), location.href, 88);
+    document.getElementById('btnStory')?.addEventListener('click', () => downloadStory({
+        bloodType: c.bloodType, componentLabel: c.componentLabel, faskesName: c.faskes.name, faskesArea: c.faskes.area,
+        needed: c.needed, fulfilled: c.fulfilled, deadline: c.deadline ? fmtDeadline(c.deadline) : '', url: location.href,
+        code: c.code, patient: c.patient
+    }).catch(err => toast(err.message || 'Gagal membuat gambar.', 'error')));
 }
 
 function invalidView() {

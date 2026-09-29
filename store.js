@@ -175,6 +175,7 @@ const store = {
         register: (body) => api('POST', '/donors/register', { role: 'donor', body }),
         dashboard: () => api('GET', '/donors/me', { role: 'donor' }),
         updateArea: (area) => api('PATCH', '/donors/me/area', { role: 'donor', body: { area } }),
+        updateLocation: (lat, lng) => api('PATCH', '/donors/me/location', { role: 'donor', body: { lat, lng } }),
         respond: (ticketId, accept) => api('POST', `/donors/me/tickets/${ticketId}/respond`, { role: 'donor', body: { accept } }),
         cancel: (ticketId) => api('POST', `/donors/me/tickets/${ticketId}/cancel`, { role: 'donor' }),
         ack: (ticketId) => api('POST', `/donors/me/tickets/${ticketId}/ack`, { role: 'donor' }),

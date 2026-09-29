@@ -78,12 +78,16 @@ export const adjustStockSchema = z.object({
 export const limitSchema = z.object({ query: z.object({ limit: z.coerce.number().int().min(1).max(100).default(10) }) });
 
 const area = z.string().refine(a => a in AREAS, 'Kecamatan tidak dikenal');
+// gps fix from the browser, limited to indonesia's bounding box
+const gps = { lat: z.number().min(-11).max(6), lng: z.number().min(94).max(142) };
 
 export const registerDonorSchema = z.object({
   body: z.object({
     name: text(2, 80, 'Nama'),
     bloodType,
     area,
+    lat: gps.lat.optional(),
+    lng: gps.lng.optional(),
     lastDonationAt: z.coerce.date().nullable().optional(),
     consentNotification: z.literal(true, { message: 'Izin notifikasi wajib disetujui' }),
     consentLocation: z.literal(true, { message: 'Izin lokasi wajib disetujui' }),
@@ -93,6 +97,8 @@ export const registerDonorSchema = z.object({
 export const respondSchema = z.object({ params: idParam, body: z.object({ accept: z.boolean() }) });
 
 export const updateAreaSchema = z.object({ body: z.object({ area }) });
+
+export const updateLocationSchema = z.object({ body: z.object(gps) });
 
 export const createFaskesSchema = z.object({
   body: z.object({

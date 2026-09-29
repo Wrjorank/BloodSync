@@ -116,3 +116,127 @@ function renderQR(el, text, size) {
         el.textContent = text;
     }
 }
+
+// 1080x1920 story image for instagram / whatsapp status, drawn on a canvas so it works offline and needs no server
+// s: { bloodType, componentLabel, faskesName, faskesArea, needed, fulfilled, deadline, url, code, patient }
+async function downloadStory(s) {
+    const W = 1080, H = 1920, F = '"Plus Jakarta Sans", sans-serif';
+    await Promise.all([800, 700, 600].map(w => document.fonts?.load(`${w} 40px "Plus Jakarta Sans"`))).catch(() => undefined);
+    const c = document.createElement('canvas');
+    c.width = W;
+    c.height = H;
+    const g = c.getContext('2d');
+    const font = (w, px) => { g.font = `${w} ${px}px ${F}`; };
+    const round = (x, y, w, h, r) => { g.beginPath(); g.roundRect(x, y, w, h, r); };
+    const wrap = (text, maxW) => {
+        const lines = [];
+        let line = '';
+        for (const word of String(text).split(/\s+/)) {
+            const next = line ? `${line} ${word}` : word;
+            if (g.measureText(next).width > maxW && line) { lines.push(line); line = word; } else line = next;
+        }
+        return line ? [...lines, line] : lines;
+    };
+
+    // background
+    const bg = g.createLinearGradient(0, 0, W, H);
+    bg.addColorStop(0, '#e11d48');
+    bg.addColorStop(1, '#881337');
+    g.fillStyle = bg;
+    g.fillRect(0, 0, W, H);
+    g.fillStyle = 'rgba(255,255,255,0.06)';
+    g.beginPath(); g.arc(W - 60, 260, 360, 0, Math.PI * 2); g.fill();
+    g.beginPath(); g.arc(80, 980, 240, 0, Math.PI * 2); g.fill();
+
+    // header: logo + verified pill
+    g.fillStyle = '#fff';
+    g.beginPath();
+    g.moveTo(112, 118); g.bezierCurveTo(112, 118, 84, 152, 84, 172); g.arc(112, 172, 28, Math.PI, 0, true); g.bezierCurveTo(140, 152, 112, 118, 112, 118);
+    g.fill();
+    font(800, 52);
+    g.textBaseline = 'middle';
+    g.fillText('BloodSync', 160, 164);
+    font(700, 30);
+    const pill = '✓  Terverifikasi faskes';
+    const pw = g.measureText(pill).width + 56;
+    round(W - 80 - pw, 132, pw, 64, 32);
+    g.fillStyle = 'rgba(255,255,255,0.18)'; g.fill();
+    g.fillStyle = '#fff';
+    g.fillText(pill, W - 80 - pw + 28, 165);
+
+    // headline
+    font(700, 36);
+    g.fillStyle = 'rgba(255,255,255,0.75)';
+    g.fillText('P A N G G I L A N   D O N O R   D A R A H', 84, 330);
+    font(800, 330);
+    g.fillStyle = '#fff';
+    g.textBaseline = 'alphabetic';
+    g.fillText(s.bloodType, 72, 660);
+    font(800, 64);
+    g.fillText(s.componentLabel, 84, 760);
+    font(600, 44);
+    g.fillStyle = 'rgba(255,255,255,0.9)';
+    wrap(`${s.faskesName} • ${s.faskesArea}`, W - 168).slice(0, 2).forEach((l, i) => g.fillText(l, 84, 850 + i * 60));
+
+    // white info card
+    const cy = 1000;
+    round(60, cy, W - 120, 800, 56);
+    g.fillStyle = '#fff'; g.fill();
+
+    font(700, 30);
+    g.fillStyle = '#94a3b8';
+    g.fillText('KEBUTUHAN TERPENUHI', 120, cy + 90);
+    font(800, 72);
+    g.fillStyle = '#0f172a';
+    const prog = `${s.fulfilled} / ${s.needed}`;
+    g.fillText(prog, 120, cy + 180);
+    const pwid = g.measureText(prog).width;
+    font(600, 38);
+    g.fillStyle = '#64748b';
+    g.fillText('kantong', 120 + pwid + 18, cy + 180);
+
+    const bx = 120, by = cy + 220, bw = W - 240, bh = 32;
+    round(bx, by, bw, bh, 16); g.fillStyle = '#f1f5f9'; g.fill();
+    const pct = s.needed ? Math.min(1, s.fulfilled / s.needed) : 0;
+    if (pct > 0) { round(bx, by, Math.max(bh, bw * pct), bh, 16); g.fillStyle = '#22c55e'; g.fill(); }
+
+    font(600, 32);
+    g.fillStyle = '#475569';
+    g.fillText(s.deadline ? `Berlaku s.d. ${s.deadline}` : 'Cek status terbaru sebelum datang', 120, cy + 320);
+
+    // qr to the live card
+    const holder = document.createElement('div');
+    if (window.QRCode) new QRCode(holder, { text: s.url, width: 340, height: 340, correctLevel: QRCode.CorrectLevel.M });
+    const qr = holder.querySelector('canvas');
+    const qx = 120, qy = cy + 380;
+    round(qx - 16, qy - 16, 372, 372, 28);
+    g.strokeStyle = '#e2e8f0'; g.lineWidth = 4; g.stroke();
+    if (qr) g.drawImage(qr, qx, qy, 340, 340);
+
+    const tx = qx + 400, tw = W - 120 - tx - 40;
+    font(800, 40);
+    g.fillStyle = '#0f172a';
+    wrap('Pindai untuk cek status real-time', tw).forEach((l, i) => g.fillText(l, tx, qy + 50 + i * 52));
+    font(500, 30);
+    g.fillStyle = '#64748b';
+    wrap('Pastikan masih dibutuhkan sebelum berangkat ke UDD faskes.', tw).forEach((l, i) => g.fillText(l, tx, qy + 180 + i * 42));
+    font(600, 28);
+    g.fillStyle = '#94a3b8';
+    g.fillText(`${s.code} • ${s.patient}`, tx, qy + 320);
+
+    // footer
+    font(600, 30);
+    g.fillStyle = 'rgba(255,255,255,0.85)';
+    g.textAlign = 'center';
+    g.fillText('Donor darah gratis. Jangan transfer uang atas nama permintaan ini.', W / 2, 1870);
+    g.textAlign = 'left';
+
+    const blob = await new Promise(r => c.toBlob(r, 'image/png'));
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `bloodsync-story-${s.code}.png`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+}

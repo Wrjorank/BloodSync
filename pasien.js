@@ -32,6 +32,14 @@ document.addEventListener('DOMContentLoaded', () => {
         render();
     });
     document.getElementById('shareCopy').addEventListener('click', copyLink);
+    document.getElementById('shareStory').addEventListener('click', () => {
+        if (!current?.publicToken) return;
+        downloadStory({
+            bloodType: current.bloodType, componentLabel: current.componentLabel, faskesName: current.faskes.name, faskesArea: current.faskes.area,
+            needed: current.progress.needed, fulfilled: current.progress.fulfilled, deadline: current.dispatch?.deadline ? fmtDeadline(current.dispatch.deadline) : '',
+            url: publicUrl(current), code: current.code, patient: maskName(current.patientName)
+        }).catch(err => toast(err.message || 'Gagal membuat gambar.', 'error'));
+    });
 
     startCountdowns();
     if (session.get('family')) subscribe('family', render);
@@ -236,19 +244,19 @@ function publicUrl(req) {
 }
 
 function renderShare(req) {
-    const show = req.status === 'BROADCASTING' && req.publicToken;
+    const show = (req.status === 'APPROVED' || req.status === 'BROADCASTING') && req.publicToken;
     document.getElementById('shareSection').classList.toggle('hidden', !show);
     if (!show) return;
     const url = publicUrl(req);
     const text = [
         'PANGGILAN DONOR DARAH (terverifikasi faskes)',
         `${req.faskes.name} membutuhkan ${req.progress.needed} kantong ${req.componentLabel} golongan ${req.bloodType}.`,
-        `Terpenuhi: ${req.progress.fulfilled} kantong | Berlaku hingga ${fmtDeadline(req.dispatch.deadline)}`,
+        `Terpenuhi: ${req.progress.fulfilled} kantong${req.dispatch?.deadline ? ` | Berlaku hingga ${fmtDeadline(req.dispatch.deadline)}` : ''}`,
         `Cek status real-time sebelum datang: ${url}`
     ].join('\n');
     document.getElementById('shareOpen').href = url;
     document.getElementById('shareWa').href = 'https://wa.me/?text=' + encodeURIComponent(text);
-    document.getElementById('shareHint').className = req.dispatch.maxedOut
+    document.getElementById('shareHint').className = req.dispatch?.maxedOut
         ? 'bg-amber-50 border border-amber-300 rounded-xl p-4 space-y-3 ring-2 ring-amber-200'
         : 'bg-blue-50 border border-blue-100 rounded-xl p-4 space-y-3';
 }

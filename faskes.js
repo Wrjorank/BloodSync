@@ -2,7 +2,8 @@
 const DOC_CHECKS = [
     'Nomor rekam medis sesuai data pasien',
     'Komponen & jumlah kantong sesuai surat',
-    'Surat ditandatangani dokter penanggung jawab'
+    'Surat ditandatangani dokter penanggung jawab',
+    'Tingkat urgensi sesuai kondisi klinis di surat'
 ];
 const REJECT_REASONS = ['Surat pengantar tidak terbaca', 'Data tidak sesuai rekam medis', 'Pasien tidak dirawat di faskes ini'];
 let MAX_RADIUS_KM = 15;
@@ -36,6 +37,7 @@ document.addEventListener('DOMContentLoaded', () => {
         e.preventDefault();
         scan(document.getElementById('scanCode').value);
     });
+    document.getElementById('btnCamera').addEventListener('click', () => (camera.instance ? stopCamera() : startCamera()));
     document.getElementById('adjustType').innerHTML = BLOOD_TYPES.map(t => `<option>${t}</option>`).join('');
     document.getElementById('adjustForm').addEventListener('submit', onAdjust);
 
@@ -69,6 +71,7 @@ function showView(name) {
     document.getElementById('btnBack').classList.toggle('hidden', name === 'stok');
     if (location.hash.slice(1) !== name) history.replaceState(null, '', `#${name}`);
     if (name === 'pemindai') document.getElementById('scanCode').focus();
+    else stopCamera();
 }
 
 function showLogin(show) {
@@ -549,6 +552,62 @@ async function scan(code) {
     }
 }
 
+// camera qr scanning; the library is fetched on first use so the dashboard stays light
+const camera = { instance: null, busy: false };
+const QR_LIB = 'https://cdn.jsdelivr.net/npm/html5-qrcode@2.3.8/html5-qrcode.min.js';
+
+function loadQrLib() {
+    if (window.Html5Qrcode) return Promise.resolve();
+    return new Promise((resolve, reject) => {
+        const s = document.createElement('script');
+        s.src = QR_LIB;
+        s.onload = resolve;
+        s.onerror = () => reject(new Error('Gagal memuat pemindai QR. Periksa koneksi internet.'));
+        document.head.appendChild(s);
+    });
+}
+
+function setCameraUi(on, hint = '') {
+    document.getElementById('cameraBox').classList.toggle('hidden', !on);
+    document.getElementById('cameraHint').textContent = hint;
+    const btn = document.getElementById('btnCamera');
+    btn.querySelector('span').textContent = on ? 'Matikan kamera' : 'Pindai dengan kamera';
+    btn.classList.toggle('btn-primary', !on);
+    btn.classList.toggle('btn-ghost', on);
+}
+
+async function startCamera() {
+    if (camera.busy) return;
+    camera.busy = true;
+    setCameraUi(true, 'Memulai kamera…');
+    try {
+        await loadQrLib();
+        const reader = new Html5Qrcode('qrReader');
+        await reader.start({ facingMode: 'environment' }, { fps: 10, qrbox: (w, h) => { const s = Math.floor(Math.min(w, h) * 0.7); return { width: s, height: s }; } }, onQrDecoded, () => undefined);
+        camera.instance = reader;
+        setCameraUi(true, 'Arahkan kamera ke QR tiket pendonor');
+    } catch (error) {
+        setCameraUi(false);
+        const denied = /permission|notallowed/i.test(String(error?.name || error));
+        toast(denied ? 'Izin kamera ditolak. Aktifkan akses kamera di browser atau ketik kode tiket.' : (error.message || 'Kamera tidak tersedia. Ketik kode tiket secara manual.'), 'error');
+    } finally {
+        camera.busy = false;
+    }
+}
+
+async function stopCamera() {
+    const reader = camera.instance;
+    camera.instance = null;
+    if (reader) await reader.stop().then(() => reader.clear()).catch(() => undefined);
+    setCameraUi(false);
+}
+
+async function onQrDecoded(text) {
+    if (!camera.instance) return;
+    await stopCamera();
+    scan(text);
+}
+
 function openScreening(ticket) {
     ui.modal = { ticket, result: null, remaining: null, newBadges: [] };
     const modal = document.getElementById('screeningModal');
@@ -599,7 +658,7 @@ function renderScreening() {
         SCREENED: () => `
             ${vitals}
             <div class="bg-green-50 border border-green-200 text-green-800 rounded-xl p-3 text-sm font-medium mb-4"><i class="fa-solid fa-circle-check mr-1"></i> Lolos skrining. Lanjutkan pengambilan darah.</div>
-            <button data-complete class="btn-primary w-full py-3 text-sm">Selesai Pengambilan</button>`,
+            <button data-complete class="btn-primary w-full py-3 text-sm">Selesai Transfusi/Pengambilan</button>`,
         SCREENING_FAILED: () => `
             ${vitals}
             <div class="bg-red-50 border border-red-200 text-red-800 rounded-xl p-3 text-sm mb-4">

@@ -71,7 +71,7 @@ export function forFamily(req: BloodRequest & { faskes: Faskes; waves: DispatchW
     rejectReason: req.rejectReason,
     faskes: { id: req.faskes.id, name: req.faskes.name, area: req.faskes.area },
     dispatch: dispatchOf(req, req.waves),
-    publicToken: req.status === 'BROADCASTING' || req.status === 'FULFILLED' ? req.publicToken : null,
+    publicToken: ['APPROVED', 'BROADCASTING', 'FULFILLED'].includes(req.status) ? req.publicToken : null,
     enRoute: req.tickets
       .filter(t => ACTIVE_TICKET.includes(t.status))
       .map(t => ({ name: maskName(t.donor.name), bloodType: t.donor.bloodType, status: t.status, etaMin: t.etaMin })),

@@ -10,6 +10,8 @@ export class Outbox {
   donors = new Set<string>();
   faskes = new Set<string>();
   invites = new Set<string>();
+  // request id -> milestone the family should hear about on whatsapp
+  familyNotices = new Map<string, 'APPROVED' | 'FULFILLED'>();
 }
 
 let io: Server | null = null;
@@ -54,6 +56,40 @@ export async function sendOtpMessage(phone: string, code: string) {
   }
 }
 
+async function notifyFamilies(notices: Outbox['familyNotices']) {
+  const requests = await prisma.bloodRequest.findMany({
+    where: { id: { in: [...notices.keys()] } },
+    include: { faskes: { select: { name: true } } },
+  });
+  const tracker = `${env.publicAppUrl}/pasien.html`;
+  for (const r of requests) {
+    const need = `${r.bagsNeeded} kantong ${COMPONENT_LABEL[r.component]} ${r.bloodType}`;
+    const text = notices.get(r.id) === 'APPROVED'
+      ? [
+        `✅ *Pengajuan darah ${r.code} sudah diverifikasi* oleh ${r.faskes.name}.`,
+        ``,
+        `Pasien: ${r.patientName}`,
+        `Kebutuhan: ${need}`,
+        ``,
+        `Petugas sedang mengecek stok dan akan memanggil pendonor terdekat bila perlu. Pantau progresnya secara langsung di sini (masuk dengan nomor WA ini):`,
+        tracker,
+        ``,
+        `Kartu resmi untuk dibagikan ke grup WA / media sosial (status selalu real-time):`,
+        `${env.publicAppUrl}/kartu.html?t=${r.publicToken}`,
+      ].join('\n')
+      : [
+        `🎉 *Kebutuhan darah ${r.code} sudah terpenuhi.*`,
+        ``,
+        `${need} untuk ${r.patientName} di ${r.faskes.name} sudah tersedia.`,
+        `Kartu publik otomatis dikunci. Mohon hentikan penyebaran pesan panggilan donor agar tidak ada yang datang sia-sia.`,
+        ``,
+        `Terima kasih telah menggunakan BloodSync. Semoga lekas sembuh 🙏`,
+      ].join('\n');
+    await channels.whatsapp(r.phone, text)
+      .catch(err => console.error(`[whatsapp] gagal kirim ke keluarga ${maskPhone(r.phone)}`, err));
+  }
+}
+
 export async function flush(outbox: Outbox) {
   try {
     if (outbox.requests.size) {
@@ -66,6 +102,7 @@ export async function flush(outbox: Outbox) {
         io?.to([rooms.faskes(r.faskesId), rooms.family(r.phone), rooms.card(r.publicToken)]).emit('request:updated', payload);
       }
     }
+    if (outbox.familyNotices.size) await notifyFamilies(outbox.familyNotices);
     for (const id of outbox.faskes) io?.to(rooms.faskes(id)).emit('faskes:updated', { id });
     for (const id of outbox.donors) io?.to(rooms.donor(id)).emit('donor:updated', { id });
 

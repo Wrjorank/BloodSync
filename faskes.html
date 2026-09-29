@@ -191,8 +191,14 @@
                     <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
                         <div class="card p-6">
                             <div class="w-12 h-12 rounded-xl bg-brand-50 text-brand-600 flex items-center justify-center text-xl mb-4"><i class="fa-solid fa-qrcode"></i></div>
-                            <h3 class="font-bold text-slate-800">Masukkan kode tiket</h3>
-                            <p class="text-sm text-slate-500 mb-4">Gunakan pemindai QR atau ketik kode yang tertera di tiket pendonor.</p>
+                            <h3 class="font-bold text-slate-800">Pindai QR tiket pendonor</h3>
+                            <p class="text-sm text-slate-500 mb-4">Arahkan kamera ke QR di ponsel pendonor, atau ketik kodenya secara manual.</p>
+                            <div id="cameraBox" class="hidden mb-4">
+                                <div id="qrReader" class="rounded-xl overflow-hidden bg-slate-900 aspect-square max-w-sm mx-auto"></div>
+                                <p id="cameraHint" class="text-xs text-slate-500 text-center mt-2">Memulai kamera…</p>
+                            </div>
+                            <button id="btnCamera" type="button" class="btn-primary w-full py-3 text-sm inline-flex items-center justify-center gap-2 mb-3"><i class="fa-solid fa-camera"></i> <span>Pindai dengan kamera</span></button>
+                            <div class="flex items-center gap-3 text-[11px] font-semibold text-slate-400 uppercase tracking-wider mb-3"><span class="h-px flex-grow bg-slate-200"></span> atau ketik kode <span class="h-px flex-grow bg-slate-200"></span></div>
                             <form id="scanForm" class="flex gap-2">
                                 <div class="relative flex-grow">
                                     <i class="fa-solid fa-ticket absolute left-3 top-1/2 -translate-y-1/2 text-slate-300"></i>

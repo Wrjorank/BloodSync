@@ -24,6 +24,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     document.getElementById('btnAccept').addEventListener('click', () => respond(true));
     document.getElementById('btnDecline').addEventListener('click', () => respond(false));
     document.getElementById('mainArea').addEventListener('click', onMainClick);
+    document.getElementById('btnGps').addEventListener('click', () => syncGps(false));
+    // browsers only allow sound after a user gesture, so unlock the alarm on the first tap
+    document.addEventListener('pointerdown', unlockAlarm, { once: true });
     document.getElementById('availability').addEventListener('click', async (e) => {
         const btn = e.target.closest('[data-availability]');
         if (!btn) return;
@@ -105,11 +108,15 @@ async function onRegister(e) {
     e.preventDefault();
     const last = document.getElementById('donorLastDate').value;
     const area = document.getElementById('donorArea').value;
+    unlockAlarm();
+    // gps is best effort: a denied or slow fix falls back to the kecamatan centroid
+    const fix = document.getElementById('consentGps').checked ? await readGps().catch(() => null) : null;
     try {
         const result = await store.donor.register({
             name: document.getElementById('donorName').value.trim(),
             bloodType: document.getElementById('donorAbo').value + document.getElementById('donorRh').value,
             area,
+            ...(fix || {}),
             lastDonationAt: last || null,
             consentNotification: document.getElementById('consentNotif').checked,
             consentLocation: document.getElementById('consentGps').checked
@@ -119,7 +126,8 @@ async function onRegister(e) {
             if ('Notification' in window && Notification.permission === 'default') Notification.requestPermission();
         } catch { /* unsupported context */ }
         e.target.reset();
-        toast(`Profil aktif. Lokasi terdeteksi: ${area}.`, 'success');
+        gpsSynced = !!fix;
+        toast(fix ? 'Profil aktif. Lokasi GPS Anda tersimpan untuk menghitung jarak ke faskes.' : `Profil aktif. GPS tidak tersedia, memakai lokasi kecamatan ${area}.`, 'success');
         start();
     } catch (error) {
         toast(error.message, 'error');
@@ -131,10 +139,83 @@ function start() {
     unsubscribe?.();
     unsubscribe = subscribe('donor', load);
     load();
+    syncGps(true);
+}
+
+// ---------- gps ----------
+let gpsSynced = false;
+
+function readGps() {
+    return new Promise((resolve, reject) => {
+        if (!navigator.geolocation) return reject(new Error('Perangkat tidak mendukung GPS.'));
+        navigator.geolocation.getCurrentPosition(
+            p => resolve({ lat: Math.round(p.coords.latitude * 1e5) / 1e5, lng: Math.round(p.coords.longitude * 1e5) / 1e5 }),
+            err => reject(new Error(err.code === 1 ? 'Izin lokasi ditolak. Aktifkan akses lokasi di pengaturan browser.' : 'Lokasi GPS belum bisa dibaca. Coba lagi di area terbuka.')),
+            { enableHighAccuracy: true, timeout: 10000, maximumAge: 300000 }
+        );
+    });
+}
+
+// silent: refresh once per session only if permission was already granted, never prompt
+async function syncGps(silent) {
+    if (silent) {
+        if (gpsSynced) return;
+        const state = await navigator.permissions?.query({ name: 'geolocation' }).then(s => s.state).catch(() => null);
+        if (state !== 'granted') return;
+    }
+    const btn = document.getElementById('btnGps');
+    const label = btn.querySelector('span');
+    label.textContent = 'Membaca lokasi…';
+    btn.disabled = true;
+    try {
+        const fix = await readGps();
+        const result = await store.donor.updateLocation(fix.lat, fix.lng);
+        gpsSynced = true;
+        if (!silent) toast(`Lokasi GPS diperbarui (sekitar ${result.area}).`, 'success');
+        load();
+    } catch (error) {
+        if (!silent) toast(error.message, 'error');
+    } finally {
+        label.textContent = 'Perbarui lokasi GPS';
+        btn.disabled = false;
+    }
+}
+
+// ---------- alarm ----------
+let alarmCtx = null;
+
+function unlockAlarm() {
+    try {
+        alarmCtx ||= new (window.AudioContext || window.webkitAudioContext)();
+        if (alarmCtx.state === 'suspended') alarmCtx.resume();
+    } catch { /* no web audio */ }
+}
+
+// two-tone siren, three bursts, synthesized so no audio file is needed
+function playAlarm() {
+    if (!alarmCtx || alarmCtx.state !== 'running') return;
+    const t0 = alarmCtx.currentTime;
+    const gain = alarmCtx.createGain();
+    gain.connect(alarmCtx.destination);
+    gain.gain.setValueAtTime(0.0001, t0);
+    for (let burst = 0; burst < 3; burst++) {
+        for (let i = 0; i < 4; i++) {
+            const start = t0 + burst * 1.2 + i * 0.2;
+            const osc = alarmCtx.createOscillator();
+            osc.type = 'square';
+            osc.frequency.setValueAtTime(i % 2 ? 660 : 880, start);
+            osc.connect(gain);
+            gain.gain.setTargetAtTime(0.15, start, 0.01);
+            gain.gain.setTargetAtTime(0.0001, start + 0.17, 0.01);
+            osc.start(start);
+            osc.stop(start + 0.2);
+        }
+    }
 }
 
 function logout() {
     unsubscribe?.();
+    gpsSynced = false;
     session.clear('donor');
     dash = null;
     hideInvite();
@@ -373,6 +454,7 @@ function renderInvite() {
     modal.classList.remove('hidden');
     modal.classList.add('flex');
     try { navigator.vibrate?.([200, 100, 200, 100, 500]); } catch { /* blocked without user gesture */ }
+    playAlarm();
     systemNotify('Panggilan Darurat BloodSync', `${invite.faskes.name} butuh ${r.bagsNeeded} kantong ${r.bloodType}. Jarak Anda ${fmtKm(invite.distanceKm)}.`);
 }
 

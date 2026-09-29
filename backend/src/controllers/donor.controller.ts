@@ -18,6 +18,10 @@ export const donorController = {
     return ApiResponse.success(res, await donorService.updateArea(donorId(req), req.body.area), 'Lokasi diperbarui');
   },
 
+  async updateLocation(req: Request, res: Response) {
+    return ApiResponse.success(res, await donorService.updateLocation(donorId(req), req.body), 'Lokasi GPS diperbarui');
+  },
+
   async deactivate(req: Request, res: Response) {
     return ApiResponse.success(res, await donorService.deactivate(donorId(req)), 'Anda tidak akan menerima panggilan lagi');
   },
