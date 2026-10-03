@@ -1,9 +1,23 @@
-import { Component } from '@prisma/client';
+import { Component, MovementKind, RequestStatus, TicketStatus, TransferStatus, Urgency } from '@prisma/client';
 
 export const BLOOD_TYPES = ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'] as const;
 export type BloodType = (typeof BLOOD_TYPES)[number];
 
 export const COMPONENT_LABEL: Record<Component, string> = { PRC: 'PRC', TC: 'Trombosit', WB: 'Whole Blood' };
+
+// indonesian labels, same wording as the frontend (store.js)
+export const URGENCY_LABEL: Record<Urgency, string> = { KRITIS: 'Kritis', MENDESAK: 'Mendesak', TERJADWAL: 'Terjadwal' };
+export const REQUEST_STATUS_LABEL: Record<RequestStatus, string> = {
+  PENDING_VERIFICATION: 'Menunggu Verifikasi', APPROVED: 'Terverifikasi', BROADCASTING: 'Pencarian Donor',
+  FULFILLED: 'Terpenuhi', CLOSED: 'Ditutup', REJECTED: 'Ditolak', EXPIRED: 'Kedaluwarsa',
+};
+export const TICKET_STATUS_LABEL: Record<TicketStatus, string> = {
+  INVITED: 'Diundang', DECLINED: 'Menolak', RESERVED: 'Menuju faskes', ARRIVED: 'Tiba', SCREENED: 'Lolos skrining',
+  SCREENING_FAILED: 'Gagal skrining', COLLECTED: 'Darah diambil', NO_SHOW: 'Tidak datang', CANCELLED: 'Dibatalkan',
+  WITHDRAWN: 'Undangan ditarik', QUOTA_FULL: 'Kuota penuh',
+};
+export const TRANSFER_STATUS_LABEL: Record<TransferStatus, string> = { PENDING: 'Menunggu', APPROVED: 'Disetujui', REJECTED: 'Ditolak', CANCELLED: 'Dibatalkan' };
+export const MOVEMENT_KIND_LABEL: Record<MovementKind, string> = { IN: 'Masuk', OUT: 'Keluar', TRANSFER: 'Mutasi masuk' };
 
 export const DISPATCH = {
   eligibilityDays: 60, // value from the spec; confirm against permenkes 91/2015 / local UDD before production

@@ -98,6 +98,8 @@ model User {
   faskesId     String?
   faskes       Faskes?  @relation(fields: [faskesId], references: [id])
   isActive     Boolean  @default(true)
+  // copied into every staff jwt; bumped when the admin changes role, faskes or password, so old sessions die at once
+  tokenVersion Int      @default(0)
   lastLoginAt  DateTime?
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
@@ -148,6 +150,8 @@ model Donor {
   responseRate   Float     @default(0.5)
   isSimulated    Boolean   @default(false)
   isActive       Boolean   @default(true)
+  // copied into every donor jwt; bumping it (logout) kills all tokens issued before
+  tokenVersion   Int       @default(0)
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
 

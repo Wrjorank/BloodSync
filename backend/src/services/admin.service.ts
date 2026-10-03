@@ -2,8 +2,8 @@ import bcrypt from 'bcryptjs';
 import { Component, FaskesType, UserRole } from '@prisma/client';
 import prisma from '../config/prisma';
 import { BLOOD_TYPES, DISPATCH } from '../constants/blood';
-import { badRequest } from '../utils/AppError';
-import { ACTIVE_REQUEST, closeRequestTx, lockRequest, runInTx } from './dispatch.service';
+import { badRequest, conflict, notFound } from '../utils/AppError';
+import { ACTIVE_REQUEST, LIVE_DONOR, closeRequestTx, lockRequest, runInTx } from './dispatch.service';
 import { audit } from './audit.service';
 
 export const adminService = {
@@ -18,6 +18,37 @@ export const adminService = {
       await tx.stock.createMany({ data: components.flatMap(component => BLOOD_TYPES.map(bloodType => ({ faskesId: f.id, component, bloodType, quantity: 0 }))) });
       await audit(tx, `admin:${adminId}`, 'faskes.create', f.id);
       return f;
+    });
+  },
+
+  async updateFaskes(adminId: string, id: string, input: { name: string; type: FaskesType; area: string; address?: string; lat: number; lng: number }) {
+    return runInTx(async (tx, outbox) => {
+      const before = await tx.faskes.findUnique({ where: { id } });
+      if (!before) throw notFound('Faskes tidak ditemukan');
+      const f = await tx.faskes.update({ where: { id }, data: { ...input, address: input.address || null } });
+      const changed = (['name', 'type', 'area', 'address', 'lat', 'lng'] as const).filter(k => before[k] !== f[k]);
+      await audit(tx, `admin:${adminId}`, 'faskes.update', id, { changed });
+      outbox.faskes.add(id);
+      return f;
+    });
+  },
+
+  // a faskes with history is only deactivated: requests, donations and transfers are medical records
+  async deleteFaskes(adminId: string, id: string) {
+    const f = await prisma.faskes.findUnique({
+      where: { id },
+      include: { _count: { select: { users: true, requests: true, donations: true, transfersIn: true, transfersOut: true } } },
+    });
+    if (!f) throw notFound('Faskes tidak ditemukan');
+    const c = f._count;
+    if (c.users) throw conflict(`Masih ada ${c.users} akun petugas di faskes ini. Hapus atau pindahkan akunnya dulu.`, 'HAS_USERS');
+    const history = c.requests + c.donations + c.transfersIn + c.transfersOut;
+    if (history) throw conflict('Faskes ini sudah punya riwayat permintaan, donasi, atau mutasi. Nonaktifkan saja agar riwayatnya tetap utuh.', 'HAS_HISTORY');
+    return runInTx(async tx => {
+      // stocks and stock movements cascade with the faskes row
+      await tx.faskes.delete({ where: { id } });
+      await audit(tx, `admin:${adminId}`, 'faskes.delete', id, { name: f.name, type: f.type });
+      return { deleted: true };
     });
   },
 
@@ -65,12 +96,57 @@ export const adminService = {
         data: {
           name: input.name, email: input.email.toLowerCase(), role: input.role,
           faskesId: input.role === 'FASKES_STAFF' ? input.faskesId : null,
-          passwordHash: await bcrypt.hash(input.password, 10),
+          passwordHash: await bcrypt.hash(input.password, 12),
         },
         select: { id: true, name: true, email: true, role: true, faskesId: true },
       });
       await audit(tx, `admin:${adminId}`, 'user.create', user.id);
       return user;
+    });
+  },
+
+  async updateUser(adminId: string, id: string, input: { name: string; email: string; role: UserRole; faskesId?: string; password?: string }) {
+    const before = await prisma.user.findUnique({ where: { id } });
+    if (!before) throw notFound('Akun tidak ditemukan');
+    // the acting admin keeps their own role, so the system always has at least one super admin
+    if (id === adminId && input.role !== 'SUPER_ADMIN') throw badRequest('Tidak bisa mengubah peran akun sendiri');
+    const faskesId = input.role === 'FASKES_STAFF' ? input.faskesId : null;
+    if (input.role === 'FASKES_STAFF') {
+      if (!faskesId) throw badRequest('Petugas faskes wajib terhubung ke faskes');
+      const f = await prisma.faskes.findUnique({ where: { id: faskesId }, select: { isActive: true } });
+      if (!f || !f.isActive) throw badRequest('Faskes tidak ditemukan atau tidak aktif');
+    }
+    const passwordHash = input.password ? await bcrypt.hash(input.password, 12) : undefined;
+    const email = input.email.toLowerCase();
+    const changed = [
+      ...(before.name !== input.name ? ['name'] : []),
+      ...(before.email !== email ? ['email'] : []),
+      ...(before.role !== input.role ? ['role'] : []),
+      ...(before.faskesId !== faskesId ? ['faskes'] : []),
+      ...(passwordHash ? ['password'] : []),
+    ];
+    // role, faskes and password are baked into sessions: changing any of them signs the owner out everywhere
+    const revoke = changed.some(k => ['role', 'faskes', 'password'].includes(k));
+    return runInTx(async tx => {
+      const user = await tx.user.update({
+        where: { id },
+        data: { name: input.name, email, role: input.role, faskesId, ...(passwordHash ? { passwordHash } : {}), ...(revoke ? { tokenVersion: { increment: 1 } } : {}) },
+        select: { id: true, name: true, email: true, role: true, faskesId: true },
+      });
+      await audit(tx, `admin:${adminId}`, 'user.update', id, { changed });
+      return { ...user, sessionsRevoked: revoke, self: id === adminId };
+    });
+  },
+
+  async deleteUser(adminId: string, id: string) {
+    if (id === adminId) throw badRequest('Tidak bisa menghapus akun sendiri');
+    const user = await prisma.user.findUnique({ where: { id }, select: { email: true, name: true, role: true } });
+    if (!user) throw notFound('Akun tidak ditemukan');
+    return runInTx(async tx => {
+      await tx.user.delete({ where: { id } });
+      // the audit trail keeps who the deleted actor id belonged to
+      await audit(tx, `admin:${adminId}`, 'user.delete', id, user);
+      return { deleted: true };
     });
   },
 
@@ -96,8 +172,8 @@ export const adminService = {
   async overview() {
     const [byStatus, donors, eligibleDonors, fulfilled, tickets] = await Promise.all([
       prisma.bloodRequest.groupBy({ by: ['status'], _count: { _all: true } }),
-      prisma.donor.count({ where: { isActive: true } }),
-      prisma.donor.count({ where: { isActive: true, OR: [{ lastDonationAt: null }, { lastDonationAt: { lt: new Date(Date.now() - DISPATCH.eligibilityDays * 86400000) } }] } }),
+      prisma.donor.count({ where: LIVE_DONOR }),
+      prisma.donor.count({ where: { ...LIVE_DONOR, OR: [{ lastDonationAt: null }, { lastDonationAt: { lt: new Date(Date.now() - DISPATCH.eligibilityDays * 86400000) } }] } }),
       prisma.bloodRequest.findMany({ where: { status: 'FULFILLED' }, select: { createdAt: true, updatedAt: true }, take: 500, orderBy: { updatedAt: 'desc' } }),
       prisma.donorTicket.groupBy({ by: ['status'], _count: { _all: true } }),
     ]);

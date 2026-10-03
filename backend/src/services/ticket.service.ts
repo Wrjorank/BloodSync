@@ -1,5 +1,5 @@
 import { Prisma } from '@prisma/client';
-import { BADGES, DISPATCH, SCREENING } from '../constants/blood';
+import { BADGES, DISPATCH, SCREENING, TICKET_STATUS_LABEL } from '../constants/blood';
 import { conflict, forbidden, notFound } from '../utils/AppError';
 import { Outbox } from './notification.service';
 import { Tx, addEvent, lockRequest, progressOf, runInTx, settle, withdrawOtherInvites } from './dispatch.service';
@@ -13,11 +13,7 @@ export interface Vitals {
   weight: number;
 }
 
-const STATUS_LABEL: Record<string, string> = {
-  INVITED: 'Diundang', DECLINED: 'Menolak', RESERVED: 'Menuju faskes', ARRIVED: 'Tiba', SCREENED: 'Lolos skrining',
-  SCREENING_FAILED: 'Gagal skrining', COLLECTED: 'Darah diambil', NO_SHOW: 'Tidak datang', CANCELLED: 'Dibatalkan',
-  WITHDRAWN: 'Undangan ditarik', QUOTA_FULL: 'Kuota penuh',
-};
+const STATUS_LABEL = TICKET_STATUS_LABEL;
 
 // the ticket lookup happens before the lock; everything is re-read after the request row is locked
 async function lockedTicket(tx: Tx, ticketId: string) {

@@ -19,13 +19,15 @@ Akun hasil seed:
 
 | Peran | Email | Kata sandi |
 |---|---|---|
-| Super admin | admin@bloodsync.id | Admin#1234 |
-| Petugas RSUD Tarakan | tarakan@bloodsync.id | Petugas#1234 |
-| Petugas RS Hermina | hermina@bloodsync.id | Petugas#1234 |
-| Petugas RSUP Fatmawati | fatmawati@bloodsync.id | Petugas#1234 |
-| Petugas UDD PMI DKI | udd@bloodsync.id | Petugas#1234 |
+| Super admin | admin@bloodsync.id | `password` |
+| Petugas RSUD Tarakan | tarakan@bloodsync.id | `password` |
+| Petugas RS Hermina | hermina@bloodsync.id | `password` |
+| Petugas RSUP Fatmawati | fatmawati@bloodsync.id | `password` |
+| Petugas UDD PMI DKI | udd@bloodsync.id | `password` |
 
-Di luar production, `POST /api/auth/otp/request` mengembalikan `devCode` supaya demo tidak butuh gateway WhatsApp.
+Seed tidak pernah menimpa kata sandi akun yang sudah ada. Kata sandi `password` hanya untuk development dan demo: sebelum aplikasi bisa diakses publik, buat akun baru lewat halaman admin lalu nonaktifkan akun seed. Seed menampilkan peringatan bila dijalankan dengan `NODE_ENV=production`.
+
+Kode OTP tidak pernah dikembalikan oleh API. Tanpa `FONNTE_TOKEN` (hanya development), kode dicetak di terminal backend (`[otp] 0812****xxx kode 123456`).
 
 ## Struktur
 
@@ -33,7 +35,7 @@ Di luar production, `POST /api/auth/otp/request` mengembalikan `devCode` supaya 
 prisma/
   schema.prisma           model data
   migrations/             migrasi SQL (init)
-  seed.ts                 data demo
+  seed.ts                 data awal (faskes, akun, stok, pendonor simulasi)
 src/
   config/                 env, prisma, redis (+ fallback in-memory)
   constants/blood.ts      golongan darah, kompatibilitas, parameter dispatch & skrining, lencana
@@ -124,6 +126,9 @@ Semua di bawah `/api`. Respons: `{ success, message, data }` atau `{ success: fa
 | POST | /faskes/me/tickets/:id/screening | `{ sys, dia, hb, weight }` |
 | POST | /faskes/me/tickets/:id/collect | selesai pengambilan |
 | POST | /faskes/me/tickets/:id/no-show | lepas slot |
+| GET | /faskes/me/export/:dataset?from=&to= | Excel: `stok`, `mutasi-stok`, `permintaan`, `tiket-donor`, `mutasi-antarfaskes` (hanya faskes sendiri) |
+| GET | /faskes/me/import/stok/template | template stock opname, sudah berisi stok saat ini |
+| POST | /faskes/me/import/stok[?commit=1] | multipart `file`; tanpa `commit` hanya diperiksa, dengan `commit=1` disimpan (semua atau tidak sama sekali) |
 
 **Pendonor**
 
@@ -137,6 +142,7 @@ Semua di bawah `/api`. Respons: `{ success, message, data }` atau `{ success: fa
 | POST | /donors/me/tickets/:id/respond | `{ accept }` |
 | POST | /donors/me/tickets/:id/cancel | batal datang |
 | POST | /donors/me/tickets/:id/ack | tandai hasil sudah dibaca |
+| POST | /donors/me/logout | cabut semua token pendonor (semua perangkat) |
 | POST | /donors/me/demo/finish-recovery | hanya non-production |
 
 **Super admin**
@@ -145,10 +151,17 @@ Semua di bawah `/api`. Respons: `{ success, message, data }` atau `{ success: fa
 |---|---|---|
 | GET | /admin/overview | jumlah per status, acceptance rate, median menit sampai terpenuhi |
 | GET/POST | /admin/faskes | daftar / tambah (stok 0 dibuat otomatis) |
+| PATCH | /admin/faskes/:id | edit nama, jenis, wilayah, alamat, koordinat |
+| DELETE | /admin/faskes/:id | hapus; ditolak bila masih ada akun petugas atau sudah punya riwayat (nonaktifkan saja) |
 | PATCH | /admin/faskes/:id/active | `{ isActive }` |
 | GET/POST | /admin/users | daftar / tambah akun |
+| PATCH | /admin/users/:id | edit nama, email, peran, faskes, kata sandi (opsional); ganti peran/faskes/sandi mencabut semua sesi pemilik akun |
+| DELETE | /admin/users/:id | hapus akun; tidak bisa menghapus akun sendiri |
 | PATCH | /admin/users/:id/active | `{ isActive }` |
 | GET | /admin/audit?page=&pageSize=&actor= | audit log |
+| GET | /admin/export/:dataset?from=&to=&actor= | Excel: `audit`, `faskes`, `akun`, `permintaan` (tanpa identitas pasien), `pendonor` (nama & nomor disamarkan) |
+| GET | /admin/import/:dataset/template | template `faskes` atau `akun` (dengan sheet Petunjuk & Daftar Faskes) |
+| POST | /admin/import/:dataset[?commit=1] | sama seperti import stok; `akun` mengembalikan file Excel berisi kata sandi awal |
 
 ## Socket.io
 
@@ -171,6 +184,23 @@ Undangan panggilan darurat dan OTP dikirim lewat WA. Pendonor bisa membalas `1` 
 
 ## Produksi
 
-- Set `NODE_ENV=production`, `JWT_SECRET` wajib, `EXPOSE_OTP` dan rute demo otomatis mati.
+- Set `NODE_ENV=production`. Server menolak start bila `JWT_SECRET` (min. 32 karakter), `CORS_ORIGIN` (bukan `*`), atau `FONNTE_TOKEN` kosong. Rute demo otomatis mati.
+- Wajib HTTPS: GPS pendonor dan kamera pemindai QR hanya diizinkan browser di HTTPS (atau localhost).
+- Set `TRUST_PROXY` sesuai jumlah reverse proxy di depan aplikasi (mis. `1` untuk nginx). Biarkan `0` bila tidak ada, karena header `X-Forwarded-For` palsu bisa dipakai menghindari rate limit.
+
+## Keamanan
+
+- Login petugas: rate limit per IP dan kunci per akun (5 gagal → 15 menit), pesan error sama untuk email tak dikenal dan sandi salah, waktu respons dibuat seragam (bcrypt dummy).
+- Kata sandi: bcrypt cost 12, minimal 12 karakter dengan huruf besar, huruf kecil, angka, dan simbol.
+- JWT: HS256 dikunci. Token petugas/admin membawa `tokenVersion`, peran, dan faskes yang dicocokkan ke DB di setiap request, jadi akun yang dinonaktifkan, dihapus, dipindah faskes, diganti peran, atau diganti sandinya langsung tertolak. Admin tidak bisa menghapus atau menurunkan peran akunnya sendiri, sehingga selalu ada minimal satu super admin. Token pendonor membawa `tokenVersion` yang dicocokkan ke DB di setiap request dan koneksi socket; logout menaikkan versi sehingga semua token di semua perangkat langsung mati.
+- OTP: 6 digit acak kriptografis, disimpan sebagai hash, kedaluwarsa 5 menit, 5 percobaan, 3 kirim per 10 menit.
+- Surat dokter: jenis berkas diverifikasi dari isi (magic bytes), nama berkas acak, disimpan di luar folder publik, hanya bisa dibuka petugas faskes tujuan, setiap akses tercatat di audit log.
+- Content-Security-Policy: `script-src 'self'`. Semua library (Font Awesome, QR) di-host sendiri di `frontend/vendor/` dan Tailwind sudah di-build jadi CSS, jadi script sisipan maupun CDN yang disusupi tidak bisa berjalan. Satu-satunya pihak ketiga adalah Google Fonts.
+- Header lain: `X-Frame-Options`, `frame-ancestors 'none'`, `nosniff`, `Referrer-Policy`, `Permissions-Policy`, HSTS di production.
+- Pendonor dummy dari seed (`isSimulated`) hanya untuk development: nomornya fiktif dan bisa saja milik orang lain, jadi mereka tidak pernah di-WhatsApp. Di production, seed tidak membuatnya. Kalau database production ternyata berisi dummy, mereka tidak dipanggil Dispatch Engine, tidak dihitung di statistik, dan nomornya tidak bisa dipakai login.
+- Di production, isi pesan WhatsApp (berisi nama pasien) tidak ditulis ke log.
+- Export Excel: petugas hanya bisa mengekspor data faskesnya sendiri, admin tidak mendapat identitas pasien, setiap export tercatat di audit log (siapa, data apa, rentang, jumlah baris), dibatasi 30 kali per 10 menit dan 10.000 baris. Semua teks ditulis sebagai sel teks, sehingga isian seperti `=HYPERLINK(...)` tidak pernah menjadi formula.
+- Import Excel: hanya `.xlsx` maksimal 2 MB, diproses di memori (tidak pernah ditulis ke disk), dibaca oleh parser kecil sendiri (`src/utils/xlsx.ts`) yang hanya mengekstrak 4 bagian XML yang dibutuhkan, membatasi ukuran hasil ekstrak 20 MB (anti zip bomb), dan tidak memproses entity XML. Simpan berjalan dalam satu transaksi: satu baris salah berarti tidak ada data yang masuk. Kata sandi akun hasil import dibuat acak, di-hash bcrypt, dan hanya muncul sekali di file unduhan (tidak di log maupun audit log). Pendonor dan permintaan darah sengaja tidak bisa di-import: pendonor wajib memberi persetujuan sendiri lewat OTP (UU PDP) dan permintaan wajib disertai surat dokter yang diverifikasi.
+- Semua input divalidasi zod, query lewat Prisma (parameterized), semua teks pengguna di-escape sebelum masuk HTML.
 - Ganti adaptor `channels.push` di `notification.service.ts` dengan FCM. Untuk volume besar, pertimbangkan WhatsApp Business API resmi menggantikan Fonnte.
 - Simpan `uploads/` di storage privat (mis. S3 dengan signed URL) bila berjalan lebih dari satu instance.

@@ -50,8 +50,10 @@ export const faskesController = {
     if (!fs.existsSync(file)) throw notFound('Berkas surat tidak ditemukan');
     await prisma.auditLog.create({ data: { actor: `staff:${userId(req)}`, action: 'request.view_letter', ref: req.params.id } });
     res.setHeader('Content-Type', letter.letterMime || 'application/octet-stream');
-    res.setHeader('Content-Disposition', `inline; filename="${encodeURIComponent(letter.letterName || 'surat')}"`);
+    res.setHeader('Content-Disposition', `inline; filename="surat"; filename*=UTF-8''${encodeURIComponent(letter.letterName || 'surat')}`);
     res.setHeader('Cache-Control', 'private, no-store');
+    // a pdf opened from this response must not be able to run scripts against the app origin
+    res.setHeader('Content-Security-Policy', "default-src 'none'; img-src 'self'; style-src 'unsafe-inline'; sandbox");
     fs.createReadStream(file).pipe(res);
   },
 

@@ -1,5 +1,6 @@
 import { BloodRequest, Prisma, RequestStatus, TicketStatus } from '@prisma/client';
 import prisma from '../config/prisma';
+import { env } from '../config/env';
 import { DISPATCH, compatibleDonorTypes } from '../constants/blood';
 import { DAY_MS, boundingBox, distanceKm, eligibility, randomCode } from '../utils/helpers';
 import { notFound } from '../utils/AppError';
@@ -10,6 +11,8 @@ export type Tx = Prisma.TransactionClient;
 // tickets that currently hold a reserved slot
 export const ACTIVE_TICKET: TicketStatus[] = ['RESERVED', 'ARRIVED', 'SCREENED'];
 export const ACTIVE_REQUEST: RequestStatus[] = ['PENDING_VERIFICATION', 'APPROVED', 'BROADCASTING'];
+// seed dummies never reach production calls or numbers, even if a dev seed ran against the production db
+export const LIVE_DONOR: Prisma.DonorWhereInput = env.isProduction ? { isActive: true, isSimulated: false } : { isActive: true };
 
 // every mutation runs in one transaction; realtime events go out only after commit
 export async function runInTx<T>(fn: (tx: Tx, outbox: Outbox) => Promise<T>): Promise<T> {
@@ -164,7 +167,7 @@ async function fillInvites(tx: Tx, req: BloodRequest, p: Progress, outbox: Outbo
   const types = compatibleDonorTypes(req.bloodType, req.component, req.allowCompatible);
 
   const nearby = (await tx.donor.findMany({
-    where: { isActive: true, lat: { gte: box.minLat, lte: box.maxLat }, lng: { gte: box.minLng, lte: box.maxLng } },
+    where: { ...LIVE_DONOR, lat: { gte: box.minLat, lte: box.maxLat }, lng: { gte: box.minLng, lte: box.maxLng } },
     select: { id: true, bloodType: true, lat: true, lng: true, lastDonationAt: true, responseRate: true },
   }))
     .map(d => ({ ...d, dist: distanceKm(faskes, d) }))

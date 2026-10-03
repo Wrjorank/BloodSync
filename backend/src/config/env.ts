@@ -13,22 +13,31 @@ function secret(key: string, devFallback: string): string {
   return devFallback;
 }
 
+const jwtSecret = secret('JWT_SECRET', 'dev-only-secret-change-me');
+if (isProduction && jwtSecret.length < 32) throw new Error('JWT_SECRET minimal 32 karakter di production');
+
+const corsOrigins = secret('CORS_ORIGIN', '*').split(',').map(s => s.trim());
+if (isProduction && corsOrigins.includes('*')) throw new Error('CORS_ORIGIN harus berisi domain frontend di production, bukan *');
+
+// number of reverse proxies in front of the app. leave 0 when exposed directly,
+// otherwise anyone can fake X-Forwarded-For and dodge the per-ip rate limits
+const trustProxy = Number(process.env.TRUST_PROXY || 0);
+
 export const env = {
   nodeEnv,
   isProduction,
   port: Number(process.env.PORT || 5000),
   redisUrl: process.env.REDIS_URL || '',
-  jwtSecret: secret('JWT_SECRET', 'dev-only-secret-change-me'),
+  jwtSecret,
   staffTokenTtl: process.env.STAFF_TOKEN_TTL || '12h',
   phoneTokenTtl: process.env.PHONE_TOKEN_TTL || '7d',
-  corsOrigins: (process.env.CORS_ORIGIN || '*').split(',').map(s => s.trim()),
+  corsOrigins,
+  trustProxy,
   uploadDir: path.resolve(process.env.UPLOAD_DIR || 'uploads'),
   publicAppUrl: (process.env.PUBLIC_APP_URL || 'http://localhost:5000').replace(/\/$/, ''),
   engineIntervalMs: Number(process.env.ENGINE_INTERVAL_MS || 5000),
-  // otp codes are returned in the api response only outside production, so the demo works without a whatsapp gateway
-  exposeOtp: !isProduction && process.env.EXPOSE_OTP !== 'false',
   enableDemoRoutes: !isProduction && process.env.ENABLE_DEMO_ROUTES !== 'false',
-  // fonnte whatsapp gateway; without a token messages are only logged
-  fonnteToken: process.env.FONNTE_TOKEN || '',
+  // fonnte whatsapp gateway; without a token (dev only) messages and otp codes are only logged to the server console
+  fonnteToken: secret('FONNTE_TOKEN', ''),
   waWebhookSecret: process.env.WA_WEBHOOK_SECRET || '',
 };

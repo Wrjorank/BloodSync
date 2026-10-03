@@ -30,6 +30,10 @@ export const donorController = {
     return ApiResponse.success(res, await donorService.reactivate(donorId(req)), 'Profil aktif kembali');
   },
 
+  async logout(req: Request, res: Response) {
+    return ApiResponse.success(res, await donorService.logout(donorId(req)), 'Berhasil keluar dari semua perangkat');
+  },
+
   async respond(req: Request, res: Response) {
     const result = await ticketService.respond(donorId(req), req.params.id, req.body.accept);
     const message = result.status === 'RESERVED' ? 'Slot dikunci untuk Anda' : result.status === 'DECLINED' ? 'Panggilan dialihkan ke pendonor cadangan' : ('message' in result && result.message) || 'Kuota sudah terpenuhi';

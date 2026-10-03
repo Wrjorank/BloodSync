@@ -19,12 +19,30 @@ const corsOrigin = env.corsOrigins.includes('*') ? '*' : env.corsOrigins;
 const io = new Server(httpServer, { cors: { origin: corsOrigin } });
 
 app.disable('x-powered-by');
-app.set('trust proxy', 1);
-app.use(cors({ origin: corsOrigin }));
+app.set('trust proxy', env.trustProxy);
+app.use(cors({ origin: corsOrigin, exposedHeaders: ['Content-Disposition', 'X-Export-Rows'] }));
 app.use(express.json({ limit: '100kb' }));
 app.use((_req, res, next) => {
   res.setHeader('X-Content-Type-Options', 'nosniff');
   res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+  // scripts only from this origin (vendor libs are self-hosted), so an injected <script> or cdn compromise cannot run.
+  // inline styles stay allowed: the qr scanner and progress bars set style attributes. google fonts is the only third party
+  res.setHeader('X-Frame-Options', 'DENY');
+  res.setHeader('Content-Security-Policy', [
+    "default-src 'self'",
+    "script-src 'self'",
+    "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+    "font-src 'self' https://fonts.gstatic.com",
+    "img-src 'self' data: blob:",
+    "media-src 'self' blob:",
+    "connect-src 'self'",
+    "frame-ancestors 'none'",
+    "object-src 'none'",
+    "base-uri 'self'",
+    "form-action 'self'",
+  ].join('; '));
+  res.setHeader('Permissions-Policy', 'camera=(self), geolocation=(self), microphone=()');
+  if (env.isProduction) res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
   next();
 });
 
@@ -36,13 +54,10 @@ app.get('/health', async (_req, res) => {
 app.use('/api', authenticate, routes);
 app.use('/api', notFoundHandler);
 
-// serves the vanilla-js prototype so front and api share one origin.
-// root-level .html/.js only: a plain static mount would also expose backend/ and uploaded letters.
-const PROTOTYPE_ROOT = path.resolve(__dirname, '../..');
-app.get(/^\/([\w-]+\.(?:html|js))?$/, (req, res, next) => {
-  const file = req.params[0] || 'index.html';
-  res.sendFile(file, { root: PROTOTYPE_ROOT }, err => err && next());
-});
+// serves the frontend so pages and api share one origin. frontend/ holds only public files;
+// backend/ and the uploaded letters live outside it and are never reachable from here
+const FRONTEND_ROOT = path.resolve(__dirname, '../../frontend');
+app.use(express.static(FRONTEND_ROOT, { dotfiles: 'ignore', index: 'index.html' }));
 
 app.use(errorHandler);
 

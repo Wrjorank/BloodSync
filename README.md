@@ -8,15 +8,17 @@ Butuh Node.js 20+, MySQL 8, dan (opsional) Redis.
 
 ```bash
 cd backend
-cp .env.example .env      # sesuaikan DATABASE_URL
+cp .env.example .env      # isi DATABASE_URL dan JWT_SECRET
 npm install
-npm run setup             # generate client + migrasi + data awal
+npm run setup             # generate client + migrasi + data awal (seed)
 npm run dev
 ```
 
 Buka **http://localhost:5000**. Backend sekaligus menyajikan semua halaman.
 
 ## Peran & halaman
+
+Semua halaman ada di folder `frontend/`.
 
 | Halaman | Peran | Isi |
 |---|---|---|
@@ -26,11 +28,13 @@ Buka **http://localhost:5000**. Backend sekaligus menyajikan semua halaman.
 | `kartu.html` | Publik | Kartu darurat terverifikasi; otomatis CLOSED saat kebutuhan terpenuhi |
 | `admin.html` | Super admin | Ringkasan dampak, perizinan faskes, akun petugas, audit log |
 
-Akun awal (dari seed):
+Akun awal dibuat oleh seed, semuanya dengan kata sandi `password`:
 
-- Petugas: `tarakan@bloodsync.id`, `hermina@bloodsync.id`, `fatmawati@bloodsync.id`, `udd@bloodsync.id`, kata sandi `Petugas#1234`
-- Super admin: `admin@bloodsync.id` / `Admin#1234`
-- Pendonor terdaftar: pilih dari menu "masuk cepat sebagai pendonor terdaftar". Selama development, kode OTP tampil di layar.
+- Super admin: `admin@bloodsync.id`
+- Petugas: `tarakan@bloodsync.id`, `hermina@bloodsync.id`, `fatmawati@bloodsync.id`, `udd@bloodsync.id`
+
+> Kata sandi `password` hanya untuk development dan demo. Sebelum aplikasi bisa diakses publik, ganti akun-akun ini (buat akun baru lewat halaman admin, lalu nonaktifkan akun seed).
+- Pendonor & keluarga: masuk dengan OTP WhatsApp. Tanpa `FONNTE_TOKEN` (hanya development), kode OTP tercetak di terminal backend, tidak pernah dikirim lewat API.
 
 ## Alur penggunaan (3 tab berdampingan)
 
@@ -43,12 +47,49 @@ Akun awal (dari seed):
 
 Reset data: `npm run db:reset` di folder `backend`.
 
+## Import & export Excel
+
+Tombol **Import** dan **Export** ada di kanan atas dasbor faskes dan admin.
+
+- **Export:** pilih jenis data dan rentang tanggal (opsional), lalu file `.xlsx` terunduh. Waktu dalam WIB, dan setiap export tercatat di audit log.
+- **Import:**
+  1. Unduh template.
+  2. Isi di Excel, lalu pilih filenya. File langsung diperiksa, dan baris yang salah ditunjukkan beserta nomor barisnya.
+  3. Klik Simpan. Ini hanya bisa dilakukan jika semua baris valid.
+
+| Peran | Bisa di-import |
+|---|---|
+| Petugas faskes | Stok (stock opname): template sudah berisi stok saat ini, cukup ubah kolom Jumlah. Selisihnya dicatat sebagai mutasi stok. |
+| Super admin | Faskes (banyak sekaligus), akun petugas (kata sandi awal dibuat acak dan diunduh sekali setelah disimpan) |
+
 ## Struktur
 
 ```
-backend/          API (Express + Prisma + Redis + Socket.io), lihat backend/README.md
-store.js          klien API: sesi per peran, REST, realtime
-ui.js             helper tampilan (escape, format, countdown, QR, toast)
-*.html / *.js     halaman per peran
-_arsip/           kerangka React awal (tidak dipakai)
+backend/                    API (Express + Prisma + Redis + Socket.io), lihat backend/README.md
+  prisma/                   schema, migrasi, seed
+  src/                      config, routes, controllers, services, middlewares, validations
+frontend/                   disajikan langsung oleh backend di http://localhost:5000
+  *.html                    satu halaman per peran (lihat tabel di atas)
+  css/src/                  sumber CSS per halaman (Tailwind + komponen .inp, .btn-*, dst.)
+  css/*.css                 hasil build, ikut di-commit sehingga deploy tidak butuh build
+  js/
+    store.js                klien API: sesi per peran, REST, realtime
+    ui.js                   helper tampilan (escape, format, countdown, QR, toast)
+    pages/                  logika per halaman: admin, faskes, pasien, pendonor, kartu
+  vendor/                   library pihak ketiga yang di-host sendiri (Font Awesome, QR)
+  assets/                   favicon
+  tailwind.config.js        tema bersama (warna brand, font)
+  build-css.js              build CSS per halaman
 ```
+
+### Mengubah tampilan
+
+Setelah menambah atau mengubah class Tailwind di HTML/JS, build ulang CSS:
+
+```bash
+cd frontend
+npm install               # sekali saja
+npm run build
+```
+
+Tanpa build, class baru tidak punya style.

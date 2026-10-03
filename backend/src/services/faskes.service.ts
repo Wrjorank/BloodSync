@@ -3,7 +3,7 @@ import prisma from '../config/prisma';
 import { BLOOD_TYPES, COMPONENT_LABEL, DISPATCH } from '../constants/blood';
 import { boundingBox, distanceKm, eligibility } from '../utils/helpers';
 import { badRequest, notFound } from '../utils/AppError';
-import { runInTx } from './dispatch.service';
+import { LIVE_DONOR, runInTx } from './dispatch.service';
 import { audit } from './audit.service';
 
 export const faskesService = {
@@ -83,7 +83,7 @@ export const faskesService = {
     const f = await this.me(faskesId);
     const box = boundingBox(f, radiusKm);
     const donors = (await prisma.donor.findMany({
-      where: { isActive: true, lat: { gte: box.minLat, lte: box.maxLat }, lng: { gte: box.minLng, lte: box.maxLng } },
+      where: { ...LIVE_DONOR, lat: { gte: box.minLat, lte: box.maxLat }, lng: { gte: box.minLng, lte: box.maxLng } },
       select: { bloodType: true, lat: true, lng: true, lastDonationAt: true },
     })).filter(d => distanceKm(f, d) <= radiusKm);
     const byType = BLOOD_TYPES.map(type => {

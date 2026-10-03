@@ -3,7 +3,7 @@ import { env } from '../config/env';
 import { requireAdmin, requireDonor, requirePhone, requireStaff } from '../middlewares/auth';
 import { validate } from '../middlewares/validate';
 import { rateLimit } from '../middlewares/rateLimit';
-import { letterUpload } from '../middlewares/upload';
+import { letterUpload, xlsxUpload } from '../middlewares/upload';
 import * as s from '../validations/schemas';
 import { authController as auth } from '../controllers/auth.controller';
 import { publicController as pub } from '../controllers/public.controller';
@@ -12,6 +12,8 @@ import { faskesController as fk } from '../controllers/faskes.controller';
 import { donorController as donor } from '../controllers/donor.controller';
 import { adminController as admin } from '../controllers/admin.controller';
 import { webhookController as webhook } from '../controllers/webhook.controller';
+import { exportController as exporter } from '../controllers/export.controller';
+import { importController as importer } from '../controllers/import.controller';
 
 const router = Router();
 
@@ -63,6 +65,9 @@ staff.post('/tickets/scan', validate(s.scanSchema), fk.scan);
 staff.post('/tickets/:id/screening', validate(s.screeningSchema), fk.screening);
 staff.post('/tickets/:id/collect', validate(s.idParamSchema), fk.collect);
 staff.post('/tickets/:id/no-show', validate(s.idParamSchema), fk.noShow);
+staff.get('/export/:dataset', rateLimit('export', 30, 600), validate(s.staffExportSchema), exporter.staff);
+staff.get('/import/:dataset/template', validate(s.staffImportSchema), importer.staffTemplate);
+staff.post('/import/:dataset', rateLimit('import', 30, 600), xlsxUpload, validate(s.staffImportSchema), importer.staff);
 router.use('/faskes/me', staff);
 
 // ---------- donor ----------
@@ -74,6 +79,7 @@ dn.patch('/area', validate(s.updateAreaSchema), donor.updateArea);
 dn.patch('/location', rateLimit('donor-location', 20, 3600), validate(s.updateLocationSchema), donor.updateLocation);
 dn.delete('/', donor.deactivate);
 dn.post('/reactivate', donor.reactivate);
+dn.post('/logout', donor.logout);
 dn.post('/tickets/:id/respond', validate(s.respondSchema), donor.respond);
 dn.post('/tickets/:id/cancel', validate(s.idParamSchema), donor.cancel);
 dn.post('/tickets/:id/ack', validate(s.idParamSchema), donor.acknowledge);
@@ -86,11 +92,18 @@ adm.use(requireAdmin);
 adm.get('/overview', admin.overview);
 adm.get('/faskes', admin.listFaskes);
 adm.post('/faskes', validate(s.createFaskesSchema), admin.createFaskes);
+adm.patch('/faskes/:id', validate(s.updateFaskesSchema), admin.updateFaskes);
+adm.delete('/faskes/:id', validate(s.idParamSchema), admin.deleteFaskes);
 adm.patch('/faskes/:id/active', validate(s.activeSchema), admin.setFaskesActive);
 adm.get('/users', admin.listUsers);
 adm.post('/users', validate(s.createUserSchema), admin.createUser);
+adm.patch('/users/:id', validate(s.updateUserSchema), admin.updateUser);
+adm.delete('/users/:id', validate(s.idParamSchema), admin.deleteUser);
 adm.patch('/users/:id/active', validate(s.activeSchema), admin.setUserActive);
 adm.get('/audit', validate(s.auditQuerySchema), admin.audit);
+adm.get('/export/:dataset', rateLimit('export', 30, 600), validate(s.adminExportSchema), exporter.admin);
+adm.get('/import/:dataset/template', validate(s.adminImportSchema), importer.adminTemplate);
+adm.post('/import/:dataset', rateLimit('import', 30, 600), xlsxUpload, validate(s.adminImportSchema), importer.admin);
 router.use('/admin', adm);
 
 export default router;

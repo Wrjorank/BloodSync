@@ -1,0 +1,7 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* page components */
+.lbl { @apply block text-xs font-bold text-slate-500 mb-1.5 uppercase tracking-wider; }
+.inp { @apply w-full px-4 py-3 rounded-xl border border-slate-200 bg-white font-medium text-slate-800 outline-none transition-all focus:border-brand-500 focus:ring-2 focus:ring-brand-100 read-only:bg-slate-50; }
