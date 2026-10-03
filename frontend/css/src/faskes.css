@@ -1,0 +1,18 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* page components */
+.lbl { @apply block text-xs font-semibold text-slate-600 mb-1.5; }
+.inp { @apply w-full px-3 py-2.5 rounded-lg border border-slate-200 bg-white text-sm font-medium text-slate-800 outline-none placeholder:text-slate-400 focus:border-brand-500 focus:ring-2 focus:ring-brand-100; }
+.btn-primary { @apply bg-brand-600 text-white font-semibold rounded-xl hover:bg-brand-700 transition-colors disabled:opacity-40 disabled:cursor-not-allowed; }
+.btn-dark { @apply bg-slate-900 text-white font-semibold rounded-xl hover:bg-slate-800 transition-colors disabled:opacity-40; }
+.btn-ghost { @apply bg-slate-100 text-slate-600 font-semibold rounded-xl hover:bg-slate-200 transition-colors; }
+.card { @apply bg-white rounded-2xl border border-slate-200 shadow-sm; }
+.card-head { @apply px-5 py-4 border-b border-slate-100 flex items-center justify-between gap-3; }
+.nav-link { @apply w-full flex items-center gap-3 text-slate-300 hover:text-white hover:bg-slate-800 px-4 py-3 rounded-xl font-medium transition-colors; }
+.nav-link.active { @apply bg-slate-800 text-white; }
+.nav-link.active i { @apply text-brand-500; }
+.tab-link { @apply shrink-0 px-3 py-2 rounded-lg text-sm font-semibold text-slate-300 hover:text-white; }
+.tab-link.active { @apply bg-white/10 text-white; }
+dialog::backdrop { background: rgb(15 23 42 / 0.5); }

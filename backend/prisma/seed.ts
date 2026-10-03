@@ -1,4 +1,5 @@
-// demo data: 4 faskes, staff accounts, stock matrix, simulated donors. safe to run repeatedly.
+// initial data: 4 faskes, super admin + staff accounts, stock matrix, simulated donors. safe to run repeatedly
+import 'dotenv/config';
 import { Component, PrismaClient } from '@prisma/client';
 import bcrypt from 'bcryptjs';
 
@@ -43,16 +44,21 @@ const DONORS: [string, string, string, number | null, number][] = [
   ['Intan Permata', 'A+', 'Cengkareng', 95, 0.6],
 ];
 
+// every seeded account (super admin + faskes staff) starts with this password.
+// it is a known default: replace these accounts before the app is reachable from the internet
+const DEFAULT_PASSWORD = 'password';
+const ADMIN_EMAIL = 'admin@bloodsync.id';
+
 async function main() {
-  const staffHash = await bcrypt.hash('Petugas#1234', 10);
-  const adminHash = await bcrypt.hash('Admin#1234', 10);
+  const isProduction = process.env.NODE_ENV === 'production';
+  const passwordHash = await bcrypt.hash(DEFAULT_PASSWORD, 12);
 
   for (const f of FASKES) {
     const { email, ...data } = f;
     await prisma.faskes.upsert({ where: { id: f.id }, create: data, update: data });
     await prisma.user.upsert({
       where: { email },
-      create: { email, name: `Petugas ${f.name}`, passwordHash: staffHash, role: 'FASKES_STAFF', faskesId: f.id },
+      create: { email, name: `Petugas ${f.name}`, passwordHash, role: 'FASKES_STAFF', faskesId: f.id },
       update: {},
     });
     for (const component of ['PRC', 'TC', 'WB'] as Component[]) {
@@ -67,12 +73,13 @@ async function main() {
   }
 
   await prisma.user.upsert({
-    where: { email: 'admin@bloodsync.id' },
-    create: { email: 'admin@bloodsync.id', name: 'Super Admin', passwordHash: adminHash, role: 'SUPER_ADMIN' },
+    where: { email: ADMIN_EMAIL },
+    create: { email: ADMIN_EMAIL, name: 'Super Admin', passwordHash, role: 'SUPER_ADMIN' },
     update: {},
   });
 
-  for (const [i, [name, bloodType, area, daysAgo, responseRate]] of DONORS.entries()) {
+  // dummy donors are demo data only; production starts with real registrations
+  for (const [i, [name, bloodType, area, daysAgo, responseRate]] of isProduction ? [] : DONORS.entries()) {
     const phone = '0812' + String(10000000 + i * 7919);
     const [lat, lng] = AREAS[area];
     const lastDonationAt = daysAgo === null ? null : new Date(Date.now() - daysAgo * DAY_MS);
@@ -92,8 +99,14 @@ async function main() {
   }
 
   console.log('Seed selesai.');
-  console.log('  Super admin : admin@bloodsync.id / Admin#1234');
-  console.log('  Petugas     : tarakan@bloodsync.id | hermina@bloodsync.id | fatmawati@bloodsync.id | udd@bloodsync.id / Petugas#1234');
+  console.log(`  Super admin : ${ADMIN_EMAIL} / ${DEFAULT_PASSWORD}`);
+  console.log(`  Petugas     : ${FASKES.map(f => f.email).join(' | ')} / ${DEFAULT_PASSWORD}`);
+  console.log('  Akun yang sudah ada tidak diubah kata sandinya.');
+  console.log(isProduction ? '  Pendonor dummy dilewati (production).' : `  Pendonor dummy: ${DONORS.length} (hanya development)`);
+  if (isProduction) {
+    console.warn('\n  !!! PERINGATAN: akun seed memakai kata sandi bawaan "password".');
+    console.warn('  !!! Siapa pun bisa masuk sebagai super admin. Ganti akun ini sebelum aplikasi bisa diakses publik.\n');
+  }
 }
 
 main()

@@ -1,0 +1,10 @@
+{
+  "name": "bloodsync-frontend",
+  "private": true,
+  "scripts": {
+    "build": "node build-css.js"
+  },
+  "devDependencies": {
+    "tailwindcss": "^3.4.17"
+  }
+}

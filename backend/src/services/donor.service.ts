@@ -57,7 +57,7 @@ export const donorService = {
       await audit(tx, `pendonor:${phone}`, 'donor.register', created.id);
       return created;
     });
-    return { token: signToken({ kind: 'donor', sub: donor.id, phone }), donorId: donor.id };
+    return { token: signToken({ kind: 'donor', sub: donor.id, phone, ver: donor.tokenVersion }), donorId: donor.id };
   },
 
   // one call returns everything the donor app renders
@@ -176,6 +176,15 @@ export const donorService = {
   async reactivate(donorId: string) {
     await prisma.donor.update({ where: { id: donorId }, data: { isActive: true } });
     return { active: true };
+  },
+
+  // revokes every token of this donor on every device, not just the one calling
+  async logout(donorId: string) {
+    await runInTx(async tx => {
+      const donor = await tx.donor.update({ where: { id: donorId }, data: { tokenVersion: { increment: 1 } } });
+      await audit(tx, `pendonor:${donor.phone}`, 'auth.logout', donorId);
+    });
+    return { loggedOut: true };
   },
 
   // demo shortcut: pretend the recovery period is over so the reminder flow can be shown

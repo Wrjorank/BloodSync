@@ -21,6 +21,23 @@ export const adminController = {
     return ApiResponse.success(res, await adminService.setFaskesActive(adminId(req), req.params.id, req.body.isActive), 'Status faskes diperbarui');
   },
 
+  async updateFaskes(req: Request, res: Response) {
+    return ApiResponse.success(res, await adminService.updateFaskes(adminId(req), req.params.id, req.body), 'Faskes diperbarui');
+  },
+
+  async deleteFaskes(req: Request, res: Response) {
+    return ApiResponse.success(res, await adminService.deleteFaskes(adminId(req), req.params.id), 'Faskes dihapus');
+  },
+
+  async updateUser(req: Request, res: Response) {
+    const result = await adminService.updateUser(adminId(req), req.params.id, req.body);
+    return ApiResponse.success(res, result, result.sessionsRevoked ? 'Akun diperbarui. Pemilik akun perlu masuk ulang.' : 'Akun diperbarui');
+  },
+
+  async deleteUser(req: Request, res: Response) {
+    return ApiResponse.success(res, await adminService.deleteUser(adminId(req), req.params.id), 'Akun dihapus');
+  },
+
   async listUsers(_req: Request, res: Response) {
     return ApiResponse.success(res, await adminService.listUsers());
   },
