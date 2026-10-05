@@ -3,6 +3,7 @@ import { AREAS, BLOOD_TYPES, COMPONENT_LABEL, DISPATCH, SCREENING } from '../con
 import { faskesService } from '../services/faskes.service';
 import { requestService } from '../services/request.service';
 import { ApiResponse } from '../utils/ApiResponse';
+import { env } from '../config/env';
 
 export const publicController = {
   async meta(_req: Request, res: Response) {
@@ -13,6 +14,8 @@ export const publicController = {
       areas: Object.keys(AREAS),
       dispatch: DISPATCH,
       screening: SCREENING,
+      // tells local pages to show whatsapp messages on screen; always false in production
+      devInbox: env.devInbox,
     });
   },
 

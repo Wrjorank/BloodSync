@@ -34,7 +34,17 @@ Akun awal dibuat oleh seed, semuanya dengan kata sandi `password`:
 - Petugas: `tarakan@bloodsync.id`, `hermina@bloodsync.id`, `fatmawati@bloodsync.id`, `udd@bloodsync.id`
 
 > Kata sandi `password` hanya untuk development dan demo. Sebelum aplikasi bisa diakses publik, ganti akun-akun ini (buat akun baru lewat halaman admin, lalu nonaktifkan akun seed).
-- Pendonor & keluarga: masuk dengan OTP WhatsApp. Tanpa `FONNTE_TOKEN` (hanya development), kode OTP tercetak di terminal backend, tidak pernah dikirim lewat API.
+- Pendonor & keluarga: masuk dengan OTP WhatsApp.
+
+## WhatsApp: lokal vs production
+
+| | Lokal (`FONNTE_TOKEN` kosong) | Production |
+|---|---|---|
+| OTP, undangan donor, kabar ke keluarga | muncul sebagai **notifikasi WhatsApp di layar** (kartu hijau di pojok kanan bawah, ada tombol salin kode OTP) di semua tab browser di komputer ini | dikirim ke WhatsApp asli lewat Fonnte |
+| Balasan "1"/"2" pendonor | tidak ada (pendonor menjawab lewat aplikasi) | lewat webhook Fonnte |
+| Syarat | tidak ada | `FONNTE_TOKEN` dan `WA_WEBHOOK_SECRET` wajib, lihat `backend/.env.production.example` |
+
+Notifikasi lokal hanya diterima browser di komputer yang sama. Koneksi lewat tunnel atau proxy ditolak, dan fitur ini selalu mati di production. Kode OTP tidak pernah dikembalikan oleh API.
 
 ## Alur penggunaan (3 tab berdampingan)
 

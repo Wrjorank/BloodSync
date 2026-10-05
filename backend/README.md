@@ -27,7 +27,7 @@ Akun hasil seed:
 
 Seed tidak pernah menimpa kata sandi akun yang sudah ada. Kata sandi `password` hanya untuk development dan demo: sebelum aplikasi bisa diakses publik, buat akun baru lewat halaman admin lalu nonaktifkan akun seed. Seed menampilkan peringatan bila dijalankan dengan `NODE_ENV=production`.
 
-Kode OTP tidak pernah dikembalikan oleh API. Tanpa `FONNTE_TOKEN` (hanya development), kode dicetak di terminal backend (`[otp] 0812****xxx kode 123456`).
+Kode OTP tidak pernah dikembalikan oleh API. Tanpa `FONNTE_TOKEN` (hanya development), setiap pesan WhatsApp, termasuk OTP, dikirim lewat socket ke room `dev-inbox` dan tampil sebagai notifikasi di browser lokal. Pesan juga dicatat di terminal (`[otp] 0812****xxx kode 123456`). Room ini hanya bisa diikuti dari loopback tanpa header proxy, dan selalu mati di production.
 
 ## Struktur
 
@@ -184,7 +184,7 @@ Undangan panggilan darurat dan OTP dikirim lewat WA. Pendonor bisa membalas `1` 
 
 ## Produksi
 
-- Set `NODE_ENV=production`. Server menolak start bila `JWT_SECRET` (min. 32 karakter), `CORS_ORIGIN` (bukan `*`), atau `FONNTE_TOKEN` kosong. Rute demo otomatis mati.
+- Salin `.env.production.example` menjadi `.env` di server, lalu isi semua nilainya. Server menolak start bila `JWT_SECRET` (min. 32 karakter), `CORS_ORIGIN` (bukan `*`), `FONNTE_TOKEN`, atau `WA_WEBHOOK_SECRET` (min. 16 karakter) kosong. Rute demo dan notifikasi WhatsApp lokal otomatis mati.
 - Wajib HTTPS: GPS pendonor dan kamera pemindai QR hanya diizinkan browser di HTTPS (atau localhost).
 - Set `TRUST_PROXY` sesuai jumlah reverse proxy di depan aplikasi (mis. `1` untuk nginx). Biarkan `0` bila tidak ada, karena header `X-Forwarded-For` palsu bisa dipakai menghindari rate limit.
 

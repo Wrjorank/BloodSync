@@ -24,7 +24,15 @@ export const rooms = {
   donor: (id: string) => `donor:${id}`,
   family: (phone: string) => `family:${phone}`,
   card: (token: string) => `card:${token}`,
+  // local browsers only, see socket/index.ts; exists only while env.devInbox is on
+  devInbox: 'dev-inbox',
 };
+
+// local stand-in for the gateway: the message pops up on screen in every local tab instead of a phone
+function toDevInbox(phone: string, text: string, kind: 'otp' | 'pesan') {
+  if (!env.devInbox) return;
+  io?.to(rooms.devInbox).emit('dev:whatsapp', { to: phone, text, kind, at: new Date().toISOString() });
+}
 
 // outbound channel adapters; swap the push log line for fcm in production
 const channels = {
@@ -34,6 +42,7 @@ const channels = {
   async whatsapp(phone: string, text: string) {
     // message bodies carry patient names; production logs keep only the masked recipient
     console.log(`[whatsapp] ${maskPhone(phone)} ${env.isProduction ? `(${text.length} karakter)` : text.replace(/\n/g, ' | ')}`);
+    toDevInbox(phone, text, 'pesan');
     await fonnte(phone, text);
   },
 };
@@ -53,14 +62,16 @@ async function fonnte(phone: string, text: string) {
 export const sendWhatsapp = (phone: string, text: string) => channels.whatsapp(phone, text);
 
 // the code is never returned by the api. with a gateway it is never logged either;
-// without one (development only, env.ts enforces the token in production) the server console is the inbox
+// without one (development only, env.ts enforces the token in production) it goes to the local on-screen inbox
 export async function sendOtpMessage(phone: string, code: string) {
+  const text = `Kode OTP BloodSync Anda ${code}. Berlaku 5 menit. Jangan bagikan kode ini.`;
   if (!env.fonnteToken) {
-    console.log(`[otp] ${maskPhone(phone)} kode ${code} (dev: FONNTE_TOKEN kosong, kode hanya tampil di sini)`);
+    console.log(`[otp] ${maskPhone(phone)} kode ${code} (dev: tampil sebagai notifikasi di browser lokal)`);
+    toDevInbox(phone, text, 'otp');
     return;
   }
   try {
-    await fonnte(phone, `Kode OTP BloodSync Anda ${code}. Berlaku 5 menit. Jangan bagikan kode ini.`);
+    await fonnte(phone, text);
   } catch (err) {
     console.error('[whatsapp] gagal mengirim OTP', (err as Error).message);
     throw new AppError(503, 'Gagal mengirim OTP ke WhatsApp. Coba lagi sebentar.', 'OTP_SEND_FAILED');

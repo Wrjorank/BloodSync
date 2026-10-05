@@ -241,6 +241,75 @@ async function downloadStory(s) {
     setTimeout(() => URL.revokeObjectURL(a.href), 1000);
 }
 
+// ---------- local whatsapp inbox ----------
+// development without a whatsapp gateway: every message the server would send (otp, donor invites,
+// family updates) pops up here instead. the server only enables it locally and never in production
+function setupDevInbox() {
+    if (typeof store === 'undefined') return;
+    store.meta().then(meta => {
+        if (!meta.devInbox) return;
+        return loadSocketLib().then(() => {
+            const socket = window.io(API_BASE, { transports: ['websocket', 'polling'] });
+            socket.on('connect', () => socket.emit('dev:inbox', ok => ok && devInboxBadge()));
+            socket.on('dev:whatsapp', showWhatsappNotice);
+        });
+    }).catch(() => undefined);
+}
+
+function devInboxBadge() {
+    if (document.getElementById('devInboxBadge')) return;
+    const badge = document.createElement('div');
+    badge.id = 'devInboxBadge';
+    badge.className = 'fixed bottom-3 left-3 z-[90] bg-slate-900/90 text-white text-[11px] font-semibold px-3 py-1.5 rounded-full shadow-lg pointer-events-none';
+    badge.innerHTML = '<i class="fa-brands fa-whatsapp text-green-400"></i> Mode lokal: WhatsApp tampil sebagai notifikasi';
+    document.body.appendChild(badge);
+}
+
+function showWhatsappNotice(m) {
+    let box = document.getElementById('waInbox');
+    if (!box) {
+        box = document.createElement('div');
+        box.id = 'waInbox';
+        box.className = 'fixed bottom-12 right-3 z-[95] flex flex-col gap-2 w-[calc(100%-1.5rem)] max-w-xs';
+        document.body.appendChild(box);
+    }
+    const otp = m.kind === 'otp' ? /\b(\d{6})\b/.exec(m.text)?.[1] : null;
+    const card = document.createElement('div');
+    card.className = 'bg-white rounded-2xl shadow-2xl border border-green-200 overflow-hidden';
+    card.innerHTML = `
+        <div class="bg-green-600 text-white px-3 py-2 flex items-center gap-2 text-xs">
+            <i class="fa-brands fa-whatsapp text-base"></i>
+            <div class="min-w-0 flex-grow"><div class="font-bold">WhatsApp (simulasi lokal)</div><div data-to class="opacity-90 truncate"></div></div>
+            <button data-close-wa class="w-6 h-6 rounded-md hover:bg-white/20" aria-label="Tutup"><i class="fa-solid fa-xmark"></i></button>
+        </div>
+        <div class="p-3 space-y-2">
+            <div data-otp class="hidden items-center justify-between gap-2 bg-green-50 rounded-xl px-3 py-2">
+                <span data-code class="font-mono text-2xl font-extrabold tracking-[0.3em] text-green-700"></span>
+                <button data-copy class="text-xs font-semibold text-green-700 hover:text-green-900"><i class="fa-regular fa-copy"></i> Salin</button>
+            </div>
+            <p data-text class="text-xs text-slate-600 whitespace-pre-line max-h-40 overflow-y-auto"></p>
+        </div>`;
+    // the message carries patient names typed by users: text only, never html
+    card.querySelector('[data-to]').textContent = `ke ${m.to} • ${fmtTime(m.at)}`;
+    card.querySelector('[data-text]').textContent = m.text;
+    if (otp) {
+        const row = card.querySelector('[data-otp]');
+        row.classList.replace('hidden', 'flex');
+        card.querySelector('[data-code]').textContent = otp;
+        card.querySelector('[data-copy]').addEventListener('click', (e) => {
+            navigator.clipboard?.writeText(otp).then(() => { e.currentTarget.innerHTML = '<i class="fa-solid fa-check"></i> Tersalin'; }).catch(() => undefined);
+        });
+    }
+    card.querySelector('[data-close-wa]').addEventListener('click', () => card.remove());
+    box.prepend(card);
+    while (box.children.length > 4) box.lastElementChild.remove();
+    // otp stays as long as it is valid; other messages after a minute
+    setTimeout(() => card.remove(), otp ? 5 * 60000 : 60000);
+    systemNotify(`WhatsApp ke ${m.to}`, otp ? `Kode OTP: ${otp}` : m.text);
+}
+
+document.addEventListener('DOMContentLoaded', setupDevInbox);
+
 // export dialog shared by the staff and admin dashboards (#exportDialog in each page).
 // pick() preselects the dataset for the current view; extra(dataset) adds filters such as the audit actor
 function setupExport({ download, pick = () => null, extra = () => ({}) }) {

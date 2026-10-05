@@ -9,6 +9,7 @@ dist/
 .env
 .env.*
 !.env.example
+!.env.production.example
 
 # uploaded doctor's letters contain patient data
 backend/uploads/
