@@ -2,7 +2,22 @@
 
 Sistem yang menghubungkan bank darah rumah sakit, UDD PMI, keluarga pasien, dan calon pendonor. Tujuannya memangkas waktu tunggu pasien kritis dan mencegah pasien dipindah-pindah antarfaskes karena stok darah.
 
-## Menjalankan
+## Menjalankan dengan Docker (paling cepat)
+
+Butuh Docker Desktop saja.
+
+```bash
+docker compose up -d --build
+```
+
+Buka **http://localhost:5000** (Swagger: http://localhost:5000/docs). MySQL, Redis, migrasi, dan data awal disiapkan otomatis. Kode OTP muncul sebagai notifikasi di browser, juga di `docker compose logs -f app`.
+
+- WhatsApp asli: salin `.env.example` menjadi `.env`, isi `FONNTE_TOKEN`, lalu jalankan `docker compose up -d`. Langkah lengkapnya ada di bagian "WhatsApp: lokal vs production".
+- Port hanya dibuka untuk laptop ini (`127.0.0.1`). Untuk diakses HP lewat Wi-Fi, ubah `127.0.0.1:5000:5000` menjadi `5000:5000` dan hapus `DEV_INBOX_TRUST_NETWORK`.
+- Hentikan dengan `docker compose down`. Untuk menghapus database juga, pakai `docker compose down -v`.
+- Konfigurasi ini untuk development dan demo, bukan production.
+
+## Menjalankan tanpa Docker
 
 Butuh Node.js 20+, MySQL 8, dan (opsional) Redis.
 
@@ -78,6 +93,7 @@ Tombol **Import** dan **Export** ada di kanan atas dasbor faskes dan admin.
 backend/                    API (Express + Prisma + Redis + Socket.io), lihat backend/README.md
   prisma/                   schema, migrasi, seed
   src/                      config, routes, controllers, services, middlewares, validations
+mobile/                     aplikasi Flutter untuk pendonor (API yang sama), lihat mobile/README.md
 frontend/                   disajikan langsung oleh backend di http://localhost:5000
   *.html                    satu halaman per peran (lihat tabel di atas)
   css/src/                  sumber CSS per halaman (Tailwind + komponen .inp, .btn-*, dst.)

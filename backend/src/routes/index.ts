@@ -21,6 +21,7 @@ const router = Router();
 router.post('/auth/staff/login', rateLimit('login', 10, 300), validate(s.staffLoginSchema), auth.staffLogin);
 router.post('/auth/otp/request', rateLimit('otp', 10, 600), validate(s.otpRequestSchema), auth.requestOtp);
 router.post('/auth/otp/verify', rateLimit('otp-verify', 20, 600), validate(s.otpVerifySchema), auth.verifyOtp);
+router.get('/auth/me', auth.me);
 
 // ---------- webhooks (shared secret in the url) ----------
 router.post('/webhooks/whatsapp', express.urlencoded({ extended: false }), rateLimit('wa-webhook', 120, 60), webhook.whatsapp);

@@ -1,0 +1,12 @@
+.git
+.claude
+**/node_modules
+**/.env
+**/.env.*
+backend/dist
+backend/uploads
+frontend/css/src
+mobile/build
+mobile/.dart_tool
+mobile/android
+mobile/ios

@@ -25,7 +25,7 @@ export const setupSocket = (io: Server) => {
     // a tunnel (cloudflared, ngrok) also connects from loopback but adds forwarding headers, which are refused
     socket.on('dev:inbox', (ack?: (ok: boolean) => void) => {
       const h = socket.handshake;
-      const loopback = ['127.0.0.1', '::1', '::ffff:127.0.0.1'].includes(h.address);
+      const loopback = env.devInboxTrustNetwork || ['127.0.0.1', '::1', '::ffff:127.0.0.1'].includes(h.address);
       const proxied = ['x-forwarded-for', 'x-real-ip', 'cf-connecting-ip', 'forwarded'].some(k => k in h.headers);
       const ok = env.devInbox && loopback && !proxied;
       if (ok) socket.join(rooms.devInbox);

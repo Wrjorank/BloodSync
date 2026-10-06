@@ -12,6 +12,8 @@ import { authenticate } from './middlewares/auth';
 import { errorHandler, notFoundHandler } from './middlewares/errorHandler';
 import { setupSocket } from './socket';
 import { startEngine, stopEngine } from './jobs/engine';
+import swaggerUi from 'swagger-ui-express';
+import { openApiSpec } from './docs/openapi';
 
 const app = express();
 const httpServer = createServer(app);
@@ -50,6 +52,14 @@ app.get('/health', async (_req, res) => {
   const db = await prisma.$queryRaw`SELECT 1`.then(() => 'up').catch(() => 'down');
   res.status(db === 'up' ? 200 : 503).json({ status: db === 'up' ? 'OK' : 'DEGRADED', db, redis: redisStatus() });
 });
+
+if (env.enableApiDocs) {
+  app.get('/docs/openapi.json', (_req, res) => res.json(openApiSpec));
+  app.use('/docs', swaggerUi.serve, swaggerUi.setup(openApiSpec, {
+    customSiteTitle: 'BloodSync API',
+    swaggerOptions: { persistAuthorization: true, docExpansion: 'none' },
+  }));
+}
 
 app.use('/api', authenticate, routes);
 app.use('/api', notFoundHandler);
