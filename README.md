@@ -2,7 +2,22 @@
 
 Sistem yang menghubungkan bank darah rumah sakit, UDD PMI, keluarga pasien, dan calon pendonor. Tujuannya memangkas waktu tunggu pasien kritis dan mencegah pasien dipindah-pindah antarfaskes karena stok darah.
 
-## Menjalankan
+## Menjalankan dengan Docker (paling cepat)
+
+Butuh Docker Desktop saja.
+
+```bash
+docker compose up -d --build
+```
+
+Buka **http://localhost:5000** (Swagger: http://localhost:5000/docs). MySQL, Redis, migrasi, dan data awal disiapkan otomatis. Kode OTP muncul sebagai notifikasi di browser, juga di `docker compose logs -f app`.
+
+- WhatsApp asli: salin `.env.example` menjadi `.env`, isi `FONNTE_TOKEN`, lalu jalankan `docker compose up -d`. Langkah lengkapnya ada di bagian "WhatsApp: lokal vs production".
+- Port hanya dibuka untuk laptop ini (`127.0.0.1`). Untuk diakses HP lewat Wi-Fi, ubah `127.0.0.1:5000:5000` menjadi `5000:5000` dan hapus `DEV_INBOX_TRUST_NETWORK`.
+- Hentikan dengan `docker compose down`. Untuk menghapus database juga, pakai `docker compose down -v`.
+- Konfigurasi ini untuk development dan demo, bukan production.
+
+## Menjalankan tanpa Docker
 
 Butuh Node.js 20+, MySQL 8, dan (opsional) Redis.
 
@@ -34,7 +49,17 @@ Akun awal dibuat oleh seed, semuanya dengan kata sandi `password`:
 - Petugas: `tarakan@bloodsync.id`, `hermina@bloodsync.id`, `fatmawati@bloodsync.id`, `udd@bloodsync.id`
 
 > Kata sandi `password` hanya untuk development dan demo. Sebelum aplikasi bisa diakses publik, ganti akun-akun ini (buat akun baru lewat halaman admin, lalu nonaktifkan akun seed).
-- Pendonor & keluarga: masuk dengan OTP WhatsApp. Tanpa `FONNTE_TOKEN` (hanya development), kode OTP tercetak di terminal backend, tidak pernah dikirim lewat API.
+- Pendonor & keluarga: masuk dengan OTP WhatsApp.
+
+## WhatsApp: lokal vs production
+
+| | Lokal (`FONNTE_TOKEN` kosong) | Production |
+|---|---|---|
+| OTP, undangan donor, kabar ke keluarga | muncul sebagai **notifikasi WhatsApp di layar** (kartu hijau di pojok kanan bawah, ada tombol salin kode OTP) di semua tab browser di komputer ini | dikirim ke WhatsApp asli lewat Fonnte |
+| Balasan "1"/"2" pendonor | tidak ada (pendonor menjawab lewat aplikasi) | lewat webhook Fonnte |
+| Syarat | tidak ada | `FONNTE_TOKEN` dan `WA_WEBHOOK_SECRET` wajib, lihat `backend/.env.production.example` |
+
+Notifikasi lokal hanya diterima browser di komputer yang sama. Koneksi lewat tunnel atau proxy ditolak, dan fitur ini selalu mati di production. Kode OTP tidak pernah dikembalikan oleh API.
 
 ## Alur penggunaan (3 tab berdampingan)
 
@@ -68,6 +93,7 @@ Tombol **Import** dan **Export** ada di kanan atas dasbor faskes dan admin.
 backend/                    API (Express + Prisma + Redis + Socket.io), lihat backend/README.md
   prisma/                   schema, migrasi, seed
   src/                      config, routes, controllers, services, middlewares, validations
+mobile/                     aplikasi Flutter untuk pendonor (API yang sama), lihat mobile/README.md
 frontend/                   disajikan langsung oleh backend di http://localhost:5000
   *.html                    satu halaman per peran (lihat tabel di atas)
   css/src/                  sumber CSS per halaman (Tailwind + komponen .inp, .btn-*, dst.)

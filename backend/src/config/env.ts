@@ -23,6 +23,11 @@ if (isProduction && corsOrigins.includes('*')) throw new Error('CORS_ORIGIN haru
 // otherwise anyone can fake X-Forwarded-For and dodge the per-ip rate limits
 const trustProxy = Number(process.env.TRUST_PROXY || 0);
 
+// production talks to real phones only; donors' "1"/"2" replies need the webhook secret too
+const fonnteToken = secret('FONNTE_TOKEN', '');
+const waWebhookSecret = secret('WA_WEBHOOK_SECRET', '');
+if (isProduction && waWebhookSecret.length < 16) throw new Error('WA_WEBHOOK_SECRET minimal 16 karakter di production');
+
 export const env = {
   nodeEnv,
   isProduction,
@@ -37,7 +42,15 @@ export const env = {
   publicAppUrl: (process.env.PUBLIC_APP_URL || 'http://localhost:5000').replace(/\/$/, ''),
   engineIntervalMs: Number(process.env.ENGINE_INTERVAL_MS || 5000),
   enableDemoRoutes: !isProduction && process.env.ENABLE_DEMO_ROUTES !== 'false',
-  // fonnte whatsapp gateway; without a token (dev only) messages and otp codes are only logged to the server console
-  fonnteToken: secret('FONNTE_TOKEN', ''),
-  waWebhookSecret: process.env.WA_WEBHOOK_SECRET || '',
+  // swagger ui at /docs; on by default outside production, opt-in there
+  enableApiDocs: process.env.ENABLE_API_DOCS ? process.env.ENABLE_API_DOCS === 'true' : !isProduction,
+  // fonnte whatsapp gateway. production requires it
+  fonnteToken,
+  waWebhookSecret,
+  // local development without a gateway: whatsapp messages (otp included) are shown as on-screen
+  // notifications in browsers on this machine instead. never on in production
+  devInbox: !isProduction && !fonnteToken,
+  // inside docker the host browser arrives from the bridge gateway, not loopback. only safe while the
+  // published port is bound to 127.0.0.1 (docker-compose.yml does that); ignored in production
+  devInboxTrustNetwork: !isProduction && process.env.DEV_INBOX_TRUST_NETWORK === 'true',
 };

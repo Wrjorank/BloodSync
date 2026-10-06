@@ -2,8 +2,9 @@ import bcrypt from 'bcryptjs';
 import crypto from 'crypto';
 import prisma from '../config/prisma';
 import { kv } from '../config/redis';
-import { randomDigits } from '../utils/helpers';
-import { OtpPurpose, signToken } from '../utils/jwt';
+import { maskPhone, randomDigits } from '../utils/helpers';
+import { AuthPayload, OtpPurpose, signToken } from '../utils/jwt';
+import { isCurrentDonorToken } from '../middlewares/auth';
 import { env } from '../config/env';
 import { badRequest, forbidden, tooMany, unauthorized } from '../utils/AppError';
 import { sendOtpMessage } from './notification.service';
@@ -74,5 +75,23 @@ export const authService = {
       if (donor) return { token: signToken({ kind: 'donor', sub: donor.id, phone, ver: donor.tokenVersion }), registered: true };
     }
     return { token: signToken({ kind: 'phone', sub: phone, purpose }), registered: false };
+  },
+
+  // lets a mobile app check a stored token on launch and learn which screens to open
+  async me(a: AuthPayload) {
+    if (a.kind === 'phone') return { kind: a.kind, purpose: a.purpose, phone: maskPhone(a.sub) };
+    if (a.kind === 'donor') {
+      if (!(await isCurrentDonorToken(a))) throw unauthorized('Sesi sudah berakhir. Silakan masuk kembali.');
+      const donor = await prisma.donor.findUniqueOrThrow({ where: { id: a.sub }, select: { id: true, name: true, bloodType: true, area: true, isActive: true } });
+      return { kind: a.kind, phone: maskPhone(a.phone), donor };
+    }
+    const user = await prisma.user.findUnique({
+      where: { id: a.sub },
+      select: { id: true, name: true, email: true, role: true, isActive: true, tokenVersion: true, faskes: { select: { id: true, name: true, type: true, area: true, isActive: true } } },
+    });
+    if (!user || !user.isActive || user.tokenVersion !== a.ver || user.role !== a.role) throw unauthorized('Sesi sudah berakhir. Silakan masuk kembali.');
+    if (user.role === 'FASKES_STAFF' && !user.faskes?.isActive) throw unauthorized('Faskes sudah dinonaktifkan');
+    const { tokenVersion, isActive, faskes, ...profile } = user;
+    return { kind: a.kind, user: profile, faskes: faskes && { id: faskes.id, name: faskes.name, type: faskes.type, area: faskes.area } };
   },
 };
