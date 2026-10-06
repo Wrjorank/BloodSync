@@ -1,4 +1,5 @@
-// initial data: 4 faskes, super admin + staff accounts, stock matrix, simulated donors. safe to run repeatedly
+// initial data: 4 faskes, super admin + staff accounts, stock matrix, simulated donors. safe to run repeatedly.
+// accounts are only created on first boot (empty users table): a default admin the operator deleted must not come back
 import 'dotenv/config';
 import { Component, PrismaClient } from '@prisma/client';
 import bcrypt from 'bcryptjs';
@@ -51,16 +52,21 @@ const ADMIN_EMAIL = 'admin@bloodsync.id';
 
 async function main() {
   const isProduction = process.env.NODE_ENV === 'production';
-  const passwordHash = await bcrypt.hash(DEFAULT_PASSWORD, 12);
+  const firstBoot = (await prisma.user.count()) === 0;
+  const passwordHash = firstBoot ? await bcrypt.hash(DEFAULT_PASSWORD, 12) : '';
 
   for (const f of FASKES) {
     const { email, ...data } = f;
-    await prisma.faskes.upsert({ where: { id: f.id }, create: data, update: data });
-    await prisma.user.upsert({
-      where: { email },
-      create: { email, name: `Petugas ${f.name}`, passwordHash, role: 'FASKES_STAFF', faskesId: f.id },
-      update: {},
-    });
+    // existing rows keep the admin's edits; a deleted one is not recreated over a faskes that now has its name
+    const exists = await prisma.faskes.findUnique({ where: { id: f.id }, select: { id: true } });
+    if (!exists) {
+      if (await prisma.faskes.findFirst({ where: { name: f.name }, select: { id: true } })) {
+        console.log(`  Faskes "${f.name}" dilewati: nama sudah dipakai faskes lain.`);
+        continue;
+      }
+      await prisma.faskes.create({ data });
+    }
+    if (firstBoot) await prisma.user.create({ data: { email, name: `Petugas ${f.name}`, passwordHash, role: 'FASKES_STAFF', faskesId: f.id } });
     for (const component of ['PRC', 'TC', 'WB'] as Component[]) {
       for (const [i, bloodType] of BLOOD_TYPES.entries()) {
         await prisma.stock.upsert({
@@ -72,13 +78,10 @@ async function main() {
     }
   }
 
-  await prisma.user.upsert({
-    where: { email: ADMIN_EMAIL },
-    create: { email: ADMIN_EMAIL, name: 'Super Admin', passwordHash, role: 'SUPER_ADMIN' },
-    update: {},
-  });
+  if (firstBoot) await prisma.user.create({ data: { email: ADMIN_EMAIL, name: 'Super Admin', passwordHash, role: 'SUPER_ADMIN' } });
 
   // dummy donors are demo data only; production starts with real registrations
+  const hasUdd = !!(await prisma.faskes.findUnique({ where: { id: 'fk-udd' }, select: { id: true } }));
   for (const [i, [name, bloodType, area, daysAgo, responseRate]] of isProduction ? [] : DONORS.entries()) {
     const phone = '0812' + String(10000000 + i * 7919);
     const [lat, lng] = AREAS[area];
@@ -91,7 +94,7 @@ async function main() {
         lat: lat + ((i % 3) - 1) * 0.004, lng: lng + ((i % 5) - 2) * 0.003,
       },
     });
-    if (lastDonationAt) {
+    if (lastDonationAt && hasUdd) {
       await prisma.donation.create({ data: { donorId: donor.id, faskesId: 'fk-udd', component: 'WB', donatedAt: lastDonationAt } });
       await prisma.donorBadge.create({ data: { donorId: donor.id, badgeId: 'first' } });
       if (bloodType.endsWith('-')) await prisma.donorBadge.create({ data: { donorId: donor.id, badgeId: 'rare' } });
@@ -99,11 +102,14 @@ async function main() {
   }
 
   console.log('Seed selesai.');
-  console.log(`  Super admin : ${ADMIN_EMAIL} / ${DEFAULT_PASSWORD}`);
-  console.log(`  Petugas     : ${FASKES.map(f => f.email).join(' | ')} / ${DEFAULT_PASSWORD}`);
-  console.log('  Akun yang sudah ada tidak diubah kata sandinya.');
+  if (firstBoot) {
+    console.log(`  Super admin : ${ADMIN_EMAIL} / ${DEFAULT_PASSWORD}`);
+    console.log(`  Petugas     : ${FASKES.map(f => f.email).join(' | ')} / ${DEFAULT_PASSWORD}`);
+  } else {
+    console.log('  Akun bawaan dilewati: tabel users sudah berisi akun (akun hanya dibuat saat database masih kosong).');
+  }
   console.log(isProduction ? '  Pendonor dummy dilewati (production).' : `  Pendonor dummy: ${DONORS.length} (hanya development)`);
-  if (isProduction) {
+  if (isProduction && firstBoot) {
     console.warn('\n  !!! PERINGATAN: akun seed memakai kata sandi bawaan "password".');
     console.warn('  !!! Siapa pun bisa masuk sebagai super admin. Ganti akun ini sebelum aplikasi bisa diakses publik.\n');
   }

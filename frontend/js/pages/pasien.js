@@ -2,6 +2,8 @@
 const pending = { phone: null };
 const seen = { status: null, fulfilled: null };
 let current = null;
+let unsubscribe = null;
+let renderSeq = 0;
 
 const HEADER = {
     PENDING_VERIFICATION: ['fa-hourglass-half', 'bg-orange-100 text-orange-500', 'Menunggu Verifikasi', 'Petugas faskes sedang memeriksa surat pengantar dokter.'],
@@ -42,9 +44,39 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     startCountdowns();
-    if (session.get('family')) subscribe('family', render);
+    onSessionEnd('family', () => {
+        if (!unsubscribe) return;
+        endSession();
+        toast('Sesi berakhir, silakan masuk kembali.', 'error');
+    });
+    if (session.get('family')) watch();
     render();
 });
+
+// one live subscription per verified session
+function watch() {
+    unsubscribe?.();
+    unsubscribe = subscribe('family', render);
+}
+
+// session expired or cleared in another tab: back to an unverified, empty form
+function endSession() {
+    unsubscribe?.();
+    unsubscribe = null;
+    renderSeq++; // drop any tracker fetch still in flight
+    session.clear('family');
+    current = null;
+    seen.status = null;
+    seen.fulfilled = null;
+    const input = document.getElementById('reqPhone');
+    input.readOnly = false;
+    input.value = '';
+    document.getElementById('reqOtp').value = '';
+    document.getElementById('otpRow').classList.add('hidden');
+    document.getElementById('btnSendOtp').classList.remove('hidden');
+    document.getElementById('otpVerified').classList.add('hidden');
+    showView('formView');
+}
 
 function showVerified(phone) {
     const input = document.getElementById('reqPhone');
@@ -57,34 +89,38 @@ function showVerified(phone) {
 
 async function sendOtp() {
     const phone = document.getElementById('reqPhone').value;
-    try {
-        await store.requestOtp(phone, 'FAMILY');
-        pending.phone = phone;
-        document.getElementById('otpRow').classList.remove('hidden');
-        document.getElementById('reqOtp').focus();
-        toast('Kode OTP dikirim ke WhatsApp Anda.');
-    } catch (error) {
-        toast(error.message, 'error');
-    }
+    await whileBusy(document.getElementById('btnSendOtp'), async () => {
+        try {
+            await store.requestOtp(phone, 'FAMILY');
+            pending.phone = phone;
+            document.getElementById('otpRow').classList.remove('hidden');
+            document.getElementById('reqOtp').focus();
+            toast('Kode OTP dikirim ke WhatsApp Anda.');
+        } catch (error) {
+            toast(error.message, 'error');
+        }
+    });
 }
 
 async function verifyOtp() {
-    try {
-        const result = await store.verifyOtp(pending.phone, 'FAMILY', document.getElementById('reqOtp').value.trim());
-        session.set('family', { token: result.token, phone: normalizePhone(pending.phone), requestId: null });
-        showVerified(normalizePhone(pending.phone));
-        subscribe('family', render);
-        // resume an active request made earlier from this number
-        const mine = await store.family.list();
-        const active = mine.find(r => ACTIVE_REQUEST.includes(r.status));
-        if (active) {
-            session.patch('family', { requestId: active.id });
-            toast(`Melanjutkan pengajuan aktif ${active.code}.`);
-            render();
+    await whileBusy(document.getElementById('btnVerifyOtp'), async () => {
+        try {
+            const result = await store.verifyOtp(pending.phone, 'FAMILY', document.getElementById('reqOtp').value.trim());
+            session.set('family', { token: result.token, phone: normalizePhone(pending.phone), requestId: null });
+            showVerified(normalizePhone(pending.phone));
+            watch();
+            // resume an active request made earlier from this number
+            const mine = await store.family.list();
+            const active = mine.find(r => ACTIVE_REQUEST.includes(r.status));
+            if (active) {
+                session.patch('family', { requestId: active.id });
+                toast(`Melanjutkan pengajuan aktif ${active.code}.`);
+                render();
+            }
+        } catch (error) {
+            if (error.status !== 401) toast(error.message, 'error');
         }
-    } catch (error) {
-        toast(error.message, 'error');
-    }
+    });
 }
 
 function normalizePhone(phone) {
@@ -149,7 +185,9 @@ function showView(id) {
     document.getElementById('trackerView').classList.toggle('hidden', id !== 'trackerView');
 }
 
+// poll, socket and post-action renders overlap, so only the newest fetch may paint
 async function render() {
+    const seq = ++renderSeq;
     const s = session.get('family');
     if (s?.phone) showVerified(s.phone);
     if (!s?.requestId) {
@@ -158,14 +196,17 @@ async function render() {
         return;
     }
     try {
-        current = await store.family.get(s.requestId);
+        const req = await store.family.get(s.requestId);
+        if (seq !== renderSeq) return;
+        current = req;
         showView('trackerView');
         renderTracker(current);
     } catch (error) {
-        if (error.status === 401 || error.status === 404) {
-            if (error.status === 404) session.patch('family', { requestId: null });
-            location.reload();
-            return;
+        if (seq !== renderSeq) return;
+        if (error.status === 401) return endSession();
+        if (error.status === 404) {
+            session.patch('family', { requestId: null });
+            return render();
         }
         toast(error.message, 'error');
     }

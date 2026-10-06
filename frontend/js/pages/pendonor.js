@@ -5,6 +5,10 @@ let pendingPhone = null;
 let shownInviteId = null;
 let mainKey = null;
 let unsubscribe = null;
+let loadSeq = 0;
+let active = false; // a donor or phone-only session is in use on this page
+// invites already answered here; a dashboard fetched before the answer landed must not reopen them
+const answered = new Set();
 
 document.addEventListener('DOMContentLoaded', async () => {
     document.getElementById('btnSendOtp').addEventListener('click', () => sendOtp(document.getElementById('donorPhone').value));
@@ -47,6 +51,11 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     startCountdowns();
+    onSessionEnd('donor', () => {
+        if (!active) return;
+        logout();
+        toast('Sesi berakhir, silakan masuk kembali.', 'error');
+    });
     const saved = session.get('donor');
     if (saved?.donor) start();
     else {
@@ -56,30 +65,35 @@ document.addEventListener('DOMContentLoaded', async () => {
 });
 
 async function sendOtp(phone) {
-    try {
-        const result = await store.requestOtp(phone, 'DONOR');
-        pendingPhone = phone;
-        document.getElementById('otpRow').classList.remove('hidden');
-        document.getElementById('donorOtp').focus();
-        toast('Kode OTP dikirim ke WhatsApp Anda.');
-    } catch (error) {
-        toast(error.message, 'error');
-    }
+    await whileBusy(document.getElementById('btnSendOtp'), async () => {
+        try {
+            await store.requestOtp(phone, 'DONOR');
+            pendingPhone = phone;
+            document.getElementById('otpRow').classList.remove('hidden');
+            document.getElementById('donorOtp').focus();
+            toast('Kode OTP dikirim ke WhatsApp Anda.');
+        } catch (error) {
+            toast(error.message, 'error');
+        }
+    });
 }
 
 // registered numbers get a donor token straight away; new numbers get a phone token for registration
 async function verifyOtp(code) {
-    try {
-        const result = await store.verifyOtp(pendingPhone, 'DONOR', code);
-        session.set('donor', { token: result.token, donor: result.registered, phone: pendingPhone });
-        if (result.registered) return start();
-        showRegistration(pendingPhone);
-    } catch (error) {
-        toast(error.message, 'error');
-    }
+    await whileBusy(document.getElementById('btnVerifyOtp'), async () => {
+        try {
+            const result = await store.verifyOtp(pendingPhone, 'DONOR', code);
+            session.set('donor', { token: result.token, donor: result.registered, phone: pendingPhone });
+            if (result.registered) return start();
+            showRegistration(pendingPhone);
+        } catch (error) {
+            toast(error.message, 'error');
+        }
+    });
 }
 
 function showRegistration(phone) {
+    active = true;
     document.getElementById('phoneStep').classList.add('hidden');
     document.getElementById('donorRegForm').classList.remove('hidden');
     document.getElementById('regPhoneLabel').textContent = phone || 'Nomor';
@@ -87,35 +101,48 @@ function showRegistration(phone) {
 
 async function onRegister(e) {
     e.preventDefault();
+    const form = e.target;
     const last = document.getElementById('donorLastDate').value;
     const area = document.getElementById('donorArea').value;
     unlockAlarm();
-    // gps is best effort: a denied or slow fix falls back to the kecamatan centroid
-    const fix = document.getElementById('consentGps').checked ? await readGps().catch(() => null) : null;
-    try {
-        const result = await store.donor.register({
-            name: document.getElementById('donorName').value.trim(),
-            bloodType: document.getElementById('donorAbo').value + document.getElementById('donorRh').value,
-            area,
-            ...(fix || {}),
-            lastDonationAt: last || null,
-            consentNotification: document.getElementById('consentNotif').checked,
-            consentLocation: document.getElementById('consentGps').checked
-        });
-        session.set('donor', { token: result.token, donor: true });
+    // the gps read can take up to 10 s, so the button stays locked for the whole submit
+    await whileBusy(form.querySelector('button[type=submit]'), async () => {
+        // gps is best effort: a denied, slow or out-of-country fix falls back to the kecamatan centroid
+        let fix = document.getElementById('consentGps').checked ? await readGps().catch(() => null) : null;
+        const outside = !!fix && !inIndonesia(fix);
+        if (outside) fix = null;
         try {
-            if ('Notification' in window && Notification.permission === 'default') Notification.requestPermission();
-        } catch { /* unsupported context */ }
-        e.target.reset();
-        gpsSynced = !!fix;
-        toast(fix ? 'Profil aktif. Lokasi GPS Anda tersimpan untuk menghitung jarak ke faskes.' : `Profil aktif. GPS tidak tersedia, memakai lokasi kecamatan ${area}.`, 'success');
-        start();
-    } catch (error) {
-        toast(error.message, 'error');
-    }
+            const result = await store.donor.register({
+                name: document.getElementById('donorName').value.trim(),
+                bloodType: document.getElementById('donorAbo').value + document.getElementById('donorRh').value,
+                area,
+                ...(fix || {}),
+                lastDonationAt: last || null,
+                consentNotification: document.getElementById('consentNotif').checked,
+                consentLocation: document.getElementById('consentGps').checked
+            });
+            session.set('donor', { token: result.token, donor: true });
+            try {
+                if ('Notification' in window && Notification.permission === 'default') Notification.requestPermission();
+            } catch { /* unsupported context */ }
+            form.reset();
+            gpsSynced = !!fix;
+            toast(fix ? 'Profil aktif. Lokasi GPS Anda tersimpan untuk menghitung jarak ke faskes.'
+                : `Profil aktif. ${outside ? 'Lokasi GPS di luar Indonesia' : 'GPS tidak tersedia'}, memakai lokasi kecamatan ${area}.`, 'success');
+            start();
+        } catch (error) {
+            if (error.status !== 401) toast(error.message, 'error');
+        }
+    });
+}
+
+// the server only accepts coordinates inside indonesia's bounding box
+function inIndonesia({ lat, lng }) {
+    return lat >= -11 && lat <= 6 && lng >= 94 && lng <= 142;
 }
 
 function start() {
+    active = true;
     mainKey = null;
     unsubscribe?.();
     unsubscribe = subscribe('donor', load);
@@ -150,6 +177,7 @@ async function syncGps(silent) {
     btn.disabled = true;
     try {
         const fix = await readGps();
+        if (!inIndonesia(fix)) throw new Error('Lokasi GPS di luar wilayah Indonesia. Lokasi kecamatan tetap dipakai.');
         const result = await store.donor.updateLocation(fix.lat, fix.lng);
         gpsSynced = true;
         if (!silent) toast(`Lokasi GPS diperbarui (sekitar ${result.area}).`, 'success');
@@ -196,11 +224,15 @@ function playAlarm() {
 
 async function logout() {
     unsubscribe?.();
+    unsubscribe = null;
+    active = false;
+    loadSeq++; // drop dashboards still in flight
     gpsSynced = false;
     // revoke on the server first; a phone-only token (registration not finished) has nothing to revoke
     if (session.get('donor')?.donor) await store.donor.logout().catch(() => undefined);
     session.clear('donor');
     dash = null;
+    answered.clear();
     hideInvite();
     document.getElementById('phoneStep').classList.remove('hidden');
     document.getElementById('donorRegForm').classList.add('hidden');
@@ -208,12 +240,17 @@ async function logout() {
     render();
 }
 
+// poll, socket and post-action reloads overlap, so only the newest call may render
 async function load() {
     if (!session.get('donor')?.donor) return;
+    const seq = ++loadSeq;
     try {
-        dash = await store.donor.dashboard();
+        const next = await store.donor.dashboard();
+        if (seq !== loadSeq) return;
+        dash = next;
         render();
     } catch (error) {
+        if (seq !== loadSeq) return;
         if (error.status === 401) return logout();
         toast(error.message, 'error');
     }
@@ -402,7 +439,7 @@ function renderHistory() {
 function renderInvite() {
     const modal = document.getElementById('inviteModal');
     const visible = !modal.classList.contains('hidden');
-    const invite = dash.invite;
+    const invite = dash.invite && !answered.has(dash.invite.ticketId) ? dash.invite : null;
     if (!invite) {
         if (visible) {
             hideInvite();
@@ -453,13 +490,15 @@ async function respond(accept) {
     const id = shownInviteId;
     hideInvite();
     if (!id) return;
+    answered.add(id);
     if (dash) dash.invite = null;
     try {
         const result = await store.donor.respond(id, accept);
         if (result.status === 'QUOTA_FULL' || result.status === 'NOT_ELIGIBLE') toast(result.message);
         else toast(accept ? 'Slot dikunci untuk Anda. Tunjukkan QR tiket saat tiba.' : 'Terima kasih. Panggilan dialihkan ke pendonor cadangan.', accept ? 'success' : 'info');
     } catch (error) {
-        toast(error.message, 'error');
+        answered.delete(id); // the answer did not land, so the invite may show again
+        if (error.status !== 401) toast(error.message, 'error');
     }
     load();
 }

@@ -1,4 +1,4 @@
-import { Prisma } from '@prisma/client';
+import { Prisma, TicketStatus } from '@prisma/client';
 import { BADGES, DISPATCH, SCREENING, TICKET_STATUS_LABEL } from '../constants/blood';
 import { conflict, forbidden, notFound } from '../utils/AppError';
 import { Outbox } from './notification.service';
@@ -36,10 +36,10 @@ async function awardBadges(tx: Tx, donorId: string, responseMs: number | null) {
   return fresh;
 }
 
-async function staffTicket(tx: Tx, faskesId: string, ticketId: string, expected: string) {
+async function staffTicket(tx: Tx, faskesId: string, ticketId: string, expected: TicketStatus | TicketStatus[]) {
   const { req, ticket } = await lockedTicket(tx, ticketId);
   if (req.faskesId !== faskesId) throw forbidden('Tiket ini untuk faskes lain');
-  if (ticket.status !== expected) throw conflict(`Tiket berstatus "${STATUS_LABEL[ticket.status]}"`, 'INVALID_STATE');
+  if (!([] as TicketStatus[]).concat(expected).includes(ticket.status)) throw conflict(`Tiket berstatus "${STATUS_LABEL[ticket.status]}"`, 'INVALID_STATE');
   return { req, ticket };
 }
 
@@ -209,12 +209,15 @@ export const ticketService = {
 
   async noShow(faskesId: string, userId: string, ticketId: string) {
     return runInTx(async (tx, outbox) => {
-      const { req, ticket } = await staffTicket(tx, faskesId, ticketId, 'RESERVED');
-      await tx.donorTicket.update({ where: { id: ticketId }, data: { status: 'NO_SHOW', note: 'Slot dilepas oleh petugas karena Anda belum tiba.' } });
-      await audit(tx, `staff:${userId}`, 'ticket.no_show', ticket.code);
+      const { req, ticket } = await staffTicket(tx, faskesId, ticketId, ['RESERVED', 'ARRIVED', 'SCREENED']);
+      // a donor who checked in and then left is cancelled (shown as an outcome), not a no-show
+      const status = ticket.status === 'RESERVED' ? 'NO_SHOW' as const : 'CANCELLED' as const;
+      const note = status === 'NO_SHOW' ? 'Slot dilepas oleh petugas karena Anda belum tiba.' : 'Pendonor meninggalkan lokasi sebelum pengambilan selesai';
+      await tx.donorTicket.update({ where: { id: ticketId }, data: { status, note } });
+      await audit(tx, `staff:${userId}`, status === 'NO_SHOW' ? 'ticket.no_show' : 'ticket.left', ticket.code, { from: ticket.status });
       touch(outbox, req, ticket.donorId);
       await settle(tx, req, outbox);
-      return { status: 'NO_SHOW' };
+      return { status };
     });
   },
 };

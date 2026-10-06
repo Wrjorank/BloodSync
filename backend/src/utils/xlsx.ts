@@ -66,10 +66,13 @@ export function readSheet(buffer: Buffer, sheetName: string, maxRows: number): S
   const shared = [...text('xl/sharedStrings.xml').matchAll(/<si\b[^>]*>([\s\S]*?)<\/si>/g)].map(m => textRuns(m[1]));
 
   const rows: SheetRow[] = [];
-  for (const rowMatch of sheetXml.matchAll(/<row\b([^>]*)>([\s\S]*?)<\/row>/g)) {
-    const n = Number(attr(' ' + rowMatch[1], 'r')) || (rows.at(-1)?.n ?? 0) + 1;
+  // an empty row may be written self-closing (<row r="3"/>); it must not swallow the next row's cells
+  let lastN = 0;
+  for (const rowMatch of sheetXml.matchAll(/<row\b([^>]*?)(?:\/>|>([\s\S]*?)<\/row>)/g)) {
+    const n = Number(attr(' ' + rowMatch[1], 'r')) || lastN + 1;
+    lastN = n;
     const row: string[] = [];
-    for (const c of rowMatch[2].matchAll(/<c\b([^>]*?)(?:\/>|>([\s\S]*?)<\/c>)/g)) {
+    for (const c of (rowMatch[2] ?? '').matchAll(/<c\b([^>]*?)(?:\/>|>([\s\S]*?)<\/c>)/g)) {
       const [, attrs, inner = ''] = c;
       const ref = attr(' ' + attrs, 'r');
       const type = attr(' ' + attrs, 't');

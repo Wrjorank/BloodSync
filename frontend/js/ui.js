@@ -98,6 +98,17 @@ function toast(message, tone = 'info') {
     }, 4000);
 }
 
+// keeps a submit button disabled while its request runs so a double click cannot send twice
+async function whileBusy(btn, fn) {
+    if (btn?.disabled) return;
+    if (btn) btn.disabled = true;
+    try {
+        return await fn();
+    } finally {
+        if (btn) btn.disabled = false;
+    }
+}
+
 // real os notification when the tab is in the background and permission was granted
 function systemNotify(title, body) {
     try {
@@ -359,9 +370,11 @@ function setupImport({ template, upload, onDone = () => undefined }) {
     const commitBtn = document.getElementById('importCommit');
     const fileLabel = document.getElementById('importFileName');
     let file = null;
+    let check = 0; // bumps on every pick, so only the check of the latest file lands
 
     const reset = () => {
         file = null;
+        check++;
         input.value = '';
         fileLabel.textContent = '2. Pilih file isian';
         result.classList.add('hidden');
@@ -391,14 +404,17 @@ function setupImport({ template, upload, onDone = () => undefined }) {
     input.addEventListener('change', async () => {
         if (!input.files[0]) return;
         file = input.files[0];
+        const seq = ++check;
         input.value = ''; // picking the same file again after fixing it must trigger a new check
         fileLabel.textContent = file.name;
         commitBtn.disabled = true;
         show('<p class="text-sm text-slate-500"><i class="fa-solid fa-spinner fa-spin"></i> Memeriksa file…</p>');
         try {
             const p = await upload(select.value, file, false);
+            if (seq !== check) return;
             const nothing = !p.valid || (select.value === 'stok' && !p.preview.length);
-            const head = p.preview[0] ? Object.keys(p.preview[0]) : [];
+            // columns come from the server as-is, in the order they first appear
+            const head = [...new Set(p.preview.flatMap(r => Object.keys(r)))];
             show(p.issues.length
                 ? issuesBlock(p.issues, p.total)
                 : `<div class="rounded-xl ${nothing ? 'bg-slate-50 border-slate-200 text-slate-600' : 'bg-green-50 border-green-100 text-green-700'} border p-3 text-sm font-medium">
@@ -406,16 +422,19 @@ function setupImport({ template, upload, onDone = () => undefined }) {
                    ${head.length ? `<p class="text-xs font-semibold text-slate-500">Yang akan disimpan${p.preview.length >= 50 ? ' (50 pertama)' : ''}:</p>${table(head, p.preview.map(r => head.map(h => r[h])))}` : ''}`);
             commitBtn.disabled = p.issues.length > 0 || nothing;
         } catch (error) {
+            if (seq !== check) return;
             show(`<div class="rounded-xl bg-red-50 border border-red-100 p-3 text-sm text-red-700 font-medium"><i class="fa-solid fa-circle-exclamation"></i> ${esc(error.message)}</div>`);
         }
     });
 
     commitBtn.addEventListener('click', async () => {
         if (!file) return;
+        const seq = check;
         commitBtn.disabled = true;
         try {
             const r = await upload(select.value, file, true);
             onDone();
+            if (seq !== check) return; // another file was picked meanwhile
             if (r.file) {
                 // new accounts: the password file is the only copy, so keep the dialog open with a reminder
                 show(`<div class="rounded-xl bg-amber-50 border border-amber-200 p-3 text-sm text-amber-800">
@@ -428,8 +447,11 @@ function setupImport({ template, upload, onDone = () => undefined }) {
             toast(r.message || 'Import selesai.', 'success');
             dialog.close();
         } catch (error) {
+            // row problems need a fixed file; anything else (network, server) can be retried as is
+            if (!error.details?.issues) toast(error.message, 'error');
+            if (seq !== check) return;
             if (error.details?.issues) show(issuesBlock(error.details.issues));
-            else toast(error.message, 'error');
+            else commitBtn.disabled = false;
         }
     });
 }

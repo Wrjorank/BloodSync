@@ -38,6 +38,8 @@ interface Column {
   required: boolean;
   width: number;
   hint: string;
+  // shown instead of the generic "column not found" when this column is missing
+  missing?: string;
 }
 
 interface Parsed<T> {
@@ -53,6 +55,12 @@ const headerText = (c: Column) => (c.required ? `${c.header} *` : c.header);
 const norm = (s: string) => s.toLowerCase().replace(/\*/g, '').replace(/\s+/g, ' ').trim();
 const firstIssue = (e: z.ZodError) => e.issues[0]?.message || 'Data tidak valid';
 const num = (s: string) => Number(s.replace(/\s/g, '').replace(',', '.'));
+// whole counts: "10.000" typed as text is indonesian for ten thousand; any other non-integer is refused, not rounded
+const int = (s: string) => {
+  const t = s.replace(/\s/g, '');
+  if (/^\d{1,3}(\.\d{3})+$/.test(t)) return Number(t.replace(/\./g, ''));
+  return /^\d+$/.test(t) ? Number(t) : NaN;
+};
 
 function instructions(columns: Column[], maxRows: number, notes: string[]): SheetData {
   return [
@@ -82,6 +90,8 @@ function parse<T>(buffer: Buffer, columns: Column[], maxRows: number, toValue: (
   const [head, ...body] = sheet;
   const index = new Map(head.cells.map((h, i) => [norm(h), i]));
   const missing = columns.filter(c => c.required && !index.has(norm(c.header)));
+  const special = missing.find(c => c.missing);
+  if (special) throw badRequest(special.missing!, 'TEMPLATE_OUTDATED');
   if (missing.length) throw badRequest(`Kolom ${missing.map(c => `"${c.header}"`).join(', ')} tidak ditemukan. Gunakan template terbaru.`);
   if (!body.length) throw badRequest('Belum ada data. Isi data di sheet "Data" mulai baris 2.');
   if (body.length > maxRows) throw badRequest(`Maksimal ${maxRows} baris data per file`);
@@ -112,19 +122,36 @@ function assertClean(p: Parsed<unknown>) {
 const STOCK_COLUMNS: Column[] = [
   { key: 'component', header: 'Komponen', required: true, width: 16, hint: 'PRC, Trombosit, atau Whole Blood' },
   { key: 'bloodType', header: 'Golongan', required: true, width: 12, hint: 'A+, A-, B+, B-, AB+, AB-, O+, O-' },
-  { key: 'quantity', header: 'Jumlah', required: true, width: 12, hint: 'Jumlah kantong hasil hitung fisik (bilangan bulat 0 sampai 10000)' },
+  {
+    key: 'baseline', header: 'Stok sistem (jangan diubah)', required: true, width: 26,
+    hint: 'Diisi otomatis dengan stok sistem saat template diunduh. Jangan diubah: selisih dihitung dari angka ini.',
+    missing: 'File ini memakai template lama (tanpa kolom "Stok sistem"). Unduh template baru, isi hitungan fisik di sana, lalu unggah ulang.',
+  },
+  { key: 'quantity', header: 'Jumlah', required: true, width: 12, hint: 'Jumlah kantong hasil hitung fisik (bilangan bulat 0 sampai 10000, tanpa desimal)' },
   { key: 'note', header: 'Keterangan', required: false, width: 36, hint: 'Opsional, misal "Stock opname akhir bulan"' },
 ];
 const STOCK_MAX = 100;
 const COMPONENT_ALIAS: Record<string, Component> = { prc: 'PRC', trombosit: 'TC', tc: 'TC', 'whole blood': 'WB', wb: 'WB' };
+const count = (label: string) =>
+  z.string().min(1, `${label} wajib diisi`).transform(int).refine(n => Number.isInteger(n) && n >= 0 && n <= 10000, `${label} harus bilangan bulat 0 sampai 10000 (tanpa desimal)`);
 
 const stockRow = z.object({
   component: z.string().transform(s => COMPONENT_ALIAS[norm(s)]).refine(Boolean, 'Komponen harus PRC, Trombosit, atau Whole Blood'),
   bloodType: z.string().transform(s => s.toUpperCase().replace(/\s/g, '')).refine(s => BLOOD_TYPES.includes(s as BloodType), 'Golongan harus salah satu dari A+, A-, B+, B-, AB+, AB-, O+, O-'),
-  quantity: z.string().min(1, 'Jumlah wajib diisi').transform(num).refine(n => Number.isInteger(n) && n >= 0 && n <= 10000, 'Jumlah harus bilangan bulat 0 sampai 10000'),
+  baseline: count('Stok sistem'),
+  quantity: count('Jumlah'),
   note: z.string().max(120, 'Keterangan maksimal 120 karakter'),
 });
-type StockRow = { component: Component; bloodType: string; quantity: number; note: string };
+type StockRow = { component: Component; bloodType: string; baseline: number; quantity: number; note: string };
+
+// the physical count is applied as a difference to today's stock: anything that moved since the template was
+// downloaded (allocations, donor bags, manual adjustments) stays counted instead of being reverted
+function opnameIssue(r: StockRow, current: number) {
+  const after = current + r.quantity - r.baseline;
+  return after < 0
+    ? `Stok ${COMPONENT_LABEL[r.component]} ${r.bloodType} sekarang ${current}; selisih ${r.quantity - r.baseline} membuatnya minus. Unduh template baru lalu hitung ulang.`
+    : null;
+}
 
 function parseStock(buffer: Buffer) {
   const p = parse<StockRow>(buffer, STOCK_COLUMNS, STOCK_MAX, r => {
@@ -192,8 +219,8 @@ const USER_COLUMNS: Column[] = [
   { key: 'role', header: 'Peran', required: true, width: 18, hint: '"Petugas faskes" atau "Super admin"' },
   { key: 'faskes', header: 'Faskes', required: false, width: 30, hint: 'Wajib untuk petugas faskes: nama atau ID faskes aktif (lihat sheet "Daftar Faskes")' },
 ];
-// bcrypt cost 12 is deliberately slow, so account batches stay small
-const USER_MAX = 100;
+// bcrypt cost 12 is deliberately slow (~0.25 s each), so account batches stay small enough to finish well inside a request
+const USER_MAX = 50;
 const ROLE: Record<string, UserRole> = { 'petugas faskes': 'FASKES_STAFF', petugas: 'FASKES_STAFF', 'super admin': 'SUPER_ADMIN', admin: 'SUPER_ADMIN' };
 
 const userRow = z.object({
@@ -206,7 +233,12 @@ type UserRow = { name: string; email: string; role: UserRole; faskesId: string |
 
 async function parseUsers(buffer: Buffer) {
   const faskes = await prisma.faskes.findMany({ where: { isActive: true }, select: { id: true, name: true } });
-  const byKey = new Map(faskes.flatMap(f => [[norm(f.id), f], [norm(f.name), f]] as const));
+  // names are unique in the db; a key that still matches two faskes (an id equal to another's name,
+  // names differing only in inner spaces) is refused instead of silently picking one
+  const byKey = new Map<string, { id: string; name: string } | null>();
+  for (const f of faskes) {
+    for (const k of new Set([norm(f.id), norm(f.name)])) byKey.set(k, byKey.has(k) && byKey.get(k)?.id !== f.id ? null : f);
+  }
   const p = parse<UserRow>(buffer, USER_COLUMNS, USER_MAX, r => {
     const v = userRow.safeParse(r);
     if (!v.success) return firstIssue(v.error);
@@ -214,6 +246,7 @@ async function parseUsers(buffer: Buffer) {
     if (d.role === 'SUPER_ADMIN') return { name: d.name, email: d.email, role: d.role, faskesId: null, faskesName: '' };
     if (!d.faskes) return 'Faskes wajib diisi untuk petugas faskes';
     const f = byKey.get(norm(d.faskes));
+    if (f === null) return `Faskes "${d.faskes}" cocok dengan lebih dari satu faskes. Pakai ID faskes dari sheet "Daftar Faskes"`;
     if (!f) return `Faskes "${d.faskes}" tidak ditemukan atau tidak aktif`;
     return { name: d.name, email: d.email, role: d.role, faskesId: f.id, faskesName: f.name };
   });
@@ -242,14 +275,20 @@ function initialPassword(): string {
 export const importService = {
   async staffTemplate(faskesId: string, dataset: StaffImport) {
     void dataset;
-    // prefilled with the current count so staff only overwrite the numbers that changed
+    // the system count at download time is the baseline; Jumlah starts equal so staff only overwrite what they counted differently
     const stock = await prisma.stock.findMany({ where: { faskesId } });
     const rows = (Object.keys(COMPONENT_LABEL) as Component[]).flatMap(component =>
-      BLOOD_TYPES.map(t => [COMPONENT_LABEL[component], t, stock.find(s => s.component === component && s.bloodType === t)?.quantity ?? 0, '']));
+      BLOOD_TYPES.map(t => {
+        const q = stock.find(s => s.component === component && s.bloodType === t)?.quantity ?? 0;
+        return [COMPONENT_LABEL[component], t, q, q, ''];
+      }));
     return template(STOCK_COLUMNS, rows, [{
-      sheet: 'Petunjuk', columns: [{ width: 16 }, { width: 8 }, { width: 80 }],
+      sheet: 'Petunjuk', columns: [{ width: 26 }, { width: 8 }, { width: 80 }],
       data: instructions(STOCK_COLUMNS, STOCK_MAX, [
-        'Template sudah berisi stok saat ini. Ubah kolom Jumlah sesuai hitungan fisik; baris yang tidak berubah dilewati.',
+        'Kolom "Stok sistem (jangan diubah)" berisi stok saat template diunduh, dan kolom Jumlah awalnya sama. Ubah Jumlah sesuai hitungan fisik; baris yang Jumlah-nya sama dengan stok sistem dilewati.',
+        'Yang disimpan adalah selisihnya (Jumlah dikurangi stok sistem), ditambahkan ke stok terkini. Mutasi setelah template diunduh (alokasi, kantong dari pendonor, penyesuaian manual) tidak tertimpa.',
+        'Jika selisih membuat stok terkini menjadi minus, baris itu ditolak. Unduh template baru lalu hitung ulang.',
+        'Template lama tanpa kolom "Stok sistem" tidak diterima lagi.',
         'Selisih dicatat otomatis sebagai mutasi stok masuk/keluar dan tercatat di audit log.',
       ]),
     }]);
@@ -286,9 +325,16 @@ export const importService = {
     const p = parseStock(buffer);
     const current = await prisma.stock.findMany({ where: { faskesId } });
     const now = (r: StockRow) => current.find(s => s.component === r.component && s.bloodType === r.bloodType)?.quantity ?? 0;
-    const changed = p.rows.filter(r => r.value.quantity !== now(r.value));
+    for (const { n, value } of p.rows) {
+      const issue = value.quantity !== value.baseline && opnameIssue(value, now(value));
+      if (issue) p.issues.push({ row: n, message: issue });
+    }
+    p.rows = p.rows.filter(({ n }) => !p.issues.some(i => i.row === n));
+    p.issues.sort((a, b) => a.row - b.row);
+    const changed = p.rows.filter(r => r.value.quantity !== r.value.baseline);
     return preview(dataset, p, `${changed.length} stok berubah, ${p.rows.length - changed.length} tetap.`, changed.map(({ value: r }) => ({
-      Komponen: COMPONENT_LABEL[r.component], Golongan: r.bloodType, Sebelum: now(r), Sesudah: r.quantity, Selisih: r.quantity - now(r),
+      Komponen: COMPONENT_LABEL[r.component], Golongan: r.bloodType, 'Stok sistem saat unduh': r.baseline, 'Hitungan fisik': r.quantity,
+      Selisih: r.quantity - r.baseline, 'Stok sekarang': now(r), Sesudah: now(r) + r.quantity - r.baseline,
     })));
   },
 
@@ -297,7 +343,10 @@ export const importService = {
     assertClean(p);
     return runInTx(async (tx, outbox) => {
       let changed = 0;
-      for (const { value: r } of p.rows) {
+      const issues: ImportIssue[] = [];
+      for (const { n, value: r } of p.rows) {
+        const delta = r.quantity - r.baseline;
+        if (!delta) continue;
         await tx.stock.upsert({
           where: { faskesId_component_bloodType: { faskesId, component: r.component, bloodType: r.bloodType } },
           create: { faskesId, component: r.component, bloodType: r.bloodType, quantity: 0 },
@@ -306,14 +355,19 @@ export const importService = {
         // locked read: an allocation running at the same moment cannot be overwritten silently
         const [row] = await tx.$queryRaw<{ id: string; quantity: number }[]>`
           SELECT id, quantity FROM stocks WHERE faskesId = ${faskesId} AND component = ${r.component} AND bloodType = ${r.bloodType} FOR UPDATE`;
-        const delta = r.quantity - Number(row.quantity);
-        if (!delta) continue;
+        const issue = opnameIssue(r, Number(row.quantity));
+        if (issue) {
+          issues.push({ row: n, message: issue });
+          continue;
+        }
         changed++;
-        await tx.stock.update({ where: { id: row.id }, data: { quantity: r.quantity } });
+        await tx.stock.update({ where: { id: row.id }, data: { quantity: { increment: delta } } });
         await tx.stockMovement.create({
           data: { faskesId, component: r.component, bloodType: r.bloodType, quantity: delta, kind: delta > 0 ? 'IN' : 'OUT', note: `Stock opname (import Excel)${r.note ? `: ${r.note}` : ''}` },
         });
       }
+      // all or nothing: rolls back the rows already applied
+      if (issues.length) assertClean({ rows: [], issues, total: p.total });
       await audit(tx, `staff:${userId}`, `import.${dataset}`, undefined, { rows: p.rows.length, changed });
       outbox.faskes.add(faskesId);
       return { imported: p.rows.length, changed };
@@ -351,15 +405,15 @@ export const importService = {
 
     const p = await parseUsers(buffer);
     assertClean(p);
-    // hash outside the transaction: bcrypt is slow and must not hold row locks
-    const accounts = await Promise.all(p.rows.map(async ({ value: u }) => {
+    // hash before the transaction (bcrypt must not hold row locks), one at a time with the async api
+    // so the event loop keeps serving other requests in between
+    const accounts: (UserRow & { password: string; passwordHash: string })[] = [];
+    for (const { value: u } of p.rows) {
       const password = initialPassword();
-      return { ...u, password, passwordHash: await bcrypt.hash(password, 12) };
-    }));
+      accounts.push({ ...u, password, passwordHash: await bcrypt.hash(password, 12) });
+    }
     await runInTx(async tx => {
-      for (const a of accounts) {
-        await tx.user.create({ data: { name: a.name, email: a.email, role: a.role, faskesId: a.faskesId, passwordHash: a.passwordHash } });
-      }
+      await tx.user.createMany({ data: accounts.map(a => ({ name: a.name, email: a.email, role: a.role, faskesId: a.faskesId, passwordHash: a.passwordHash })) });
       await audit(tx, `admin:${adminId}`, 'import.akun', undefined, { rows: accounts.length });
     });
     // the only copy of the initial passwords; never stored or logged

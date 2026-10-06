@@ -8,6 +8,7 @@ const COMPONENTS = { PRC: 'PRC', TC: 'Trombosit', WB: 'Whole Blood' };
 const URGENCY = { KRITIS: 'Kritis', MENDESAK: 'Mendesak', TERJADWAL: 'Terjadwal' };
 const ACTIVE_REQUEST = ['PENDING_VERIFICATION', 'APPROVED', 'BROADCASTING'];
 const ACTIVE_TICKET = ['RESERVED', 'ARRIVED', 'SCREENED'];
+const LETTER_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/heic', 'application/pdf'];
 
 const REQUEST_STATUS = {
     PENDING_VERIFICATION: 'Menunggu Verifikasi',
@@ -58,6 +59,22 @@ const session = {
     }
 };
 
+// a 401 ends the role's session; pages listen for 'bs:session-expired' to show their login again
+function expireSession(role) {
+    if (!role) return;
+    const had = !!localStorage.getItem('bs_session_' + role);
+    session.clear(role);
+    if (had) window.dispatchEvent(new CustomEvent('bs:session-expired', { detail: { role } }));
+}
+
+// fires on a 401 from the server and on a logout of the same role in another tab
+function onSessionEnd(role, fn) {
+    window.addEventListener('bs:session-expired', (e) => { if (e.detail?.role === role) fn(); });
+    window.addEventListener('storage', (e) => {
+        if ((e.key === null || e.key === 'bs_session_' + role) && !session.get(role)) fn();
+    });
+}
+
 async function api(method, path, { role, body, form } = {}) {
     const headers = {};
     const token = role && session.get(role)?.token;
@@ -71,7 +88,7 @@ async function api(method, path, { role, body, form } = {}) {
     }
     const json = await res.json().catch(() => null);
     if (!res.ok || !json?.success) {
-        if (res.status === 401 && role) session.clear(role);
+        if (res.status === 401) expireSession(role);
         throw new ApiError(res.status, json?.error?.code || 'ERROR', json?.error?.message || `Permintaan gagal (${res.status})`);
     }
     return json.data;
@@ -101,7 +118,7 @@ async function authorizedFetch(role, path, init = {}) {
 
 async function failure(res, role, fallback) {
     const json = await res.json().catch(() => null);
-    if (res.status === 401) session.clear(role);
+    if (res.status === 401) expireSession(role);
     return new ApiError(res.status, json?.error?.code || 'ERROR', json?.error?.message || `${fallback} (${res.status})`, json?.error?.details);
 }
 
@@ -147,7 +164,10 @@ function subscribe(role, onChange, { cardToken, pollMs = 20000 } = {}) {
         timer = setTimeout(onChange, 150);
     };
     let socket = null;
+    let closed = false;
     loadSocketLib().then(() => {
+        // unsubscribed while the client library was still loading
+        if (closed) return;
         socket = window.io(API_BASE, { auth: { token: role ? session.get(role)?.token : null }, transports: ['websocket', 'polling'] });
         socket.onAny(trigger);
         socket.on('connect', () => {
@@ -157,7 +177,9 @@ function subscribe(role, onChange, { cardToken, pollMs = 20000 } = {}) {
     }).catch(() => console.warn('realtime tidak tersedia, memakai polling'));
     const poll = setInterval(onChange, pollMs);
     return () => {
+        closed = true;
         clearInterval(poll);
+        clearTimeout(timer);
         socket?.close();
     };
 }
@@ -203,11 +225,25 @@ const store = {
         export: (dataset, query) => download('staff', `/faskes/me/export/${encodeURIComponent(dataset)}${query ? '?' + query : ''}`),
         importTemplate: (dataset) => download('staff', `/faskes/me/import/${encodeURIComponent(dataset)}/template`),
         import: (dataset, file, commit) => upload('staff', `/faskes/me/import/${encodeURIComponent(dataset)}${commit ? '?commit=1' : ''}`, file),
-        // the letter needs the auth header, so it is fetched as a blob instead of a plain link
+        // the letter needs the auth header, so it is fetched as a blob instead of a plain link.
+        // the window opens right away (still inside the click) so popup blockers let it through
         async openLetter(id) {
-            const res = await fetch(`${API_BASE}/api/faskes/me/requests/${id}/letter`, { headers: { Authorization: 'Bearer ' + session.get('staff')?.token } });
-            if (!res.ok) throw new ApiError(res.status, 'LETTER', 'Surat pengantar tidak dapat dibuka');
-            window.open(URL.createObjectURL(await res.blob()), '_blank');
+            const w = window.open('', '_blank');
+            if (w) w.opener = null;
+            try {
+                const res = await authorizedFetch('staff', `/faskes/me/requests/${id}/letter`);
+                if (!res.ok) throw await failure(res, 'staff', 'Surat pengantar tidak dapat dibuka');
+                const blob = await res.blob();
+                // only types the upload accepts may render; anything else is handed over as a plain download
+                const safe = LETTER_TYPES.includes(blob.type) ? blob : new Blob([blob], { type: 'application/octet-stream' });
+                const url = URL.createObjectURL(safe);
+                setTimeout(() => URL.revokeObjectURL(url), 60000);
+                if (!w) throw new ApiError(0, 'POPUP', 'Izinkan pop-up untuk membuka surat pengantar.');
+                w.location.href = url;
+            } catch (error) {
+                w?.close();
+                throw error;
+            }
         }
     },
 

@@ -140,15 +140,32 @@ export async function withdrawOtherInvites(tx: Tx, donorId: string, exceptTicket
   outbox.donors.add(donorId);
 }
 
+// a finished request must not leave a source faskes with a transfer it can still approve
+export async function cancelPendingTransfers(tx: Tx, requestId: string, note: string, outbox: Outbox) {
+  const pending = await tx.stockTransfer.findMany({ where: { requestId, status: 'PENDING' }, select: { id: true, fromFaskesId: true, toFaskesId: true } });
+  if (!pending.length) return;
+  await tx.stockTransfer.updateMany({ where: { id: { in: pending.map(t => t.id) } }, data: { status: 'CANCELLED', note } });
+  pending.forEach(t => { outbox.faskes.add(t.fromFaskesId); outbox.faskes.add(t.toFaskesId); });
+  outbox.requests.add(requestId);
+}
+
 // shared by staff close, family cancel and faskes deactivation
 export async function closeRequestTx(tx: Tx, req: BloodRequest, text: string, donorNote: string, outbox: Outbox) {
   await setStatus(tx, req, 'CLOSED', text, outbox);
   await releaseTickets(tx, req.id, ['INVITED'], 'WITHDRAWN', outbox);
   await releaseTickets(tx, req.id, ['RESERVED', 'ARRIVED', 'SCREENED'], 'CANCELLED', outbox, donorNote);
-  await tx.stockTransfer.updateMany({ where: { requestId: req.id, status: 'PENDING' }, data: { status: 'CANCELLED', note: 'Permintaan ditutup' } });
+  await cancelPendingTransfers(tx, req.id, 'Permintaan ditutup', outbox);
 }
 
-const ALERT_STATUSES: TicketStatus[] = ['INVITED', 'DECLINED', 'WITHDRAWN', 'QUOTA_FULL'];
+// a donor who checked in but never finished must not hold the slot (and block future dispatch) forever
+export const STALE_ARRIVAL_MS = 6 * 3600000;
+const staleArrival = (cutoff: Date): Prisma.DonorTicketWhereInput => ({
+  status: { in: ['ARRIVED', 'SCREENED'] },
+  OR: [{ arrivedAt: { lt: cutoff } }, { arrivedAt: null, updatedAt: { lt: cutoff } }],
+});
+
+// tickets re-invited on the same request keep their row and bump alertCount
+const REINVITABLE: TicketStatus[] = ['WITHDRAWN', 'QUOTA_FULL'];
 
 async function uniqueTicketCode(tx: Tx) {
   for (let i = 0; i < 5; i++) {
@@ -173,29 +190,38 @@ async function fillInvites(tx: Tx, req: BloodRequest, p: Progress, outbox: Outbo
     .map(d => ({ ...d, dist: distanceKm(faskes, d) }))
     .filter(d => d.dist <= radius);
 
-  const ids = nearby.map(d => d.id);
-  const [existing, committed, alerts] = await Promise.all([
-    tx.donorTicket.findMany({ where: { requestId: req.id }, select: { id: true, donorId: true, status: true } }),
+  const existing = await tx.donorTicket.findMany({ where: { requestId: req.id }, select: { id: true, donorId: true, status: true } });
+  const existingByDonor = new Map(existing.map(t => [t.donorId, t]));
+  const matched = nearby.filter(d => types.includes(d.bloodType));
+  const engaged = (id: string) => { const t = existingByDonor.get(id); return !!t && !REINVITABLE.includes(t.status); };
+
+  // lock order request -> donor; sorted ids, and rows another wave is inviting right now are skipped instead of
+  // waited on, so the weekly cap below is read race-free and concurrent waves cannot deadlock. a donor who just
+  // deactivated is filtered on the locked (latest) row
+  const open = matched.filter(d => !engaged(d.id)).map(d => d.id).sort();
+  const lockedRows = open.length
+    ? await tx.$queryRaw<{ id: string }[]>`SELECT id FROM donors WHERE id IN (${Prisma.join(open)}) AND isActive = true ORDER BY id FOR UPDATE SKIP LOCKED`
+    : [];
+  const locked = new Set(lockedRows.map(r => r.id));
+
+  const ids = matched.map(d => d.id);
+  const [committed, alerts] = await Promise.all([
     tx.donorTicket.findMany({ where: { donorId: { in: ids }, status: { in: ACTIVE_TICKET } }, select: { donorId: true } }),
-    // every push counts, including repeated re-invites on the same request
+    // every push sent in the window counts whatever the ticket became later; re-invites bump alertCount on the same row
     tx.donorTicket.groupBy({
       by: ['donorId'],
-      where: { donorId: { in: ids }, invitedAt: { gte: new Date(now - 7 * DAY_MS) }, status: { in: ALERT_STATUSES } },
+      where: { donorId: { in: ids }, invitedAt: { gte: new Date(now - 7 * DAY_MS) } },
       _sum: { alertCount: true },
     }),
   ]);
-  const existingByDonor = new Map(existing.map(t => [t.donorId, t]));
   const committedSet = new Set(committed.map(t => t.donorId));
   const alertCount = new Map(alerts.map(a => [a.donorId, a._sum.alertCount || 0]));
 
-  const stats = { inRadius: nearby.length, typeMatch: 0, eligible: 0, capped: 0 };
+  const stats = { inRadius: nearby.length, typeMatch: matched.length, eligible: 0, capped: 0 };
   const candidates: (typeof nearby[number] & { ticketId?: string })[] = [];
-  for (const d of nearby) {
-    if (!types.includes(d.bloodType)) continue;
-    stats.typeMatch++;
+  for (const d of matched) {
     if (!eligibility(d.lastDonationAt, DISPATCH.eligibilityDays, now).eligible || committedSet.has(d.id)) continue;
-    const ticket = existingByDonor.get(d.id);
-    if (ticket && ticket.status !== 'WITHDRAWN') {
+    if (engaged(d.id)) {
       stats.eligible++; // already engaged with this request
       continue;
     }
@@ -204,7 +230,7 @@ async function fillInvites(tx: Tx, req: BloodRequest, p: Progress, outbox: Outbo
       continue;
     }
     stats.eligible++;
-    candidates.push({ ...d, ticketId: ticket?.id });
+    if (locked.has(d.id)) candidates.push({ ...d, ticketId: existingByDonor.get(d.id)?.id });
   }
 
   const pendingThisWave = await tx.donorTicket.count({ where: { requestId: req.id, status: 'INVITED', wave: req.wave } });
@@ -250,6 +276,8 @@ export async function settle(tx: Tx, req: BloodRequest, outbox: Outbox) {
     await setStatus(tx, fresh, 'FULFILLED', 'Semua kantong terpenuhi, tautan publik dikunci (CLOSED)', outbox);
     await releaseTickets(tx, fresh.id, ['INVITED'], 'WITHDRAWN', outbox);
     await releaseTickets(tx, fresh.id, ['RESERVED'], 'CANCELLED', outbox, 'Kebutuhan sudah terpenuhi sebelum Anda tiba. Terima kasih!');
+    // ARRIVED/SCREENED donors may still finish (the bag goes to stock); the engine's stale sweep releases the rest
+    await cancelPendingTransfers(tx, fresh.id, 'Kebutuhan sudah terpenuhi', outbox);
     return;
   }
   if (fresh.status !== 'BROADCASTING') return;
@@ -257,12 +285,21 @@ export async function settle(tx: Tx, req: BloodRequest, outbox: Outbox) {
   else await fillInvites(tx, fresh, p, outbox);
 }
 
-// time-driven rules for one request: reservation expiry, deadline, radius escalation
+// time-driven rules for one request: stale check-ins, reservation expiry, deadline, radius escalation
 async function tickRequest(id: string) {
   await runInTx(async (tx, outbox) => {
     const req = await lockRequest(tx, id);
-    if (req.status !== 'BROADCASTING' && req.status !== 'EXPIRED') return;
     const now = new Date();
+
+    // runs on any request status, otherwise a check-in on a fulfilled/expired/closed request is never released
+    const stale = await tx.donorTicket.findMany({ where: { requestId: id, ...staleArrival(new Date(now.getTime() - STALE_ARRIVAL_MS)) }, select: { id: true, donorId: true } });
+    if (stale.length) {
+      await tx.donorTicket.updateMany({ where: { id: { in: stale.map(t => t.id) } }, data: { status: 'CANCELLED', note: 'Tiket ditutup otomatis: pengambilan tidak diselesaikan' } });
+      stale.forEach(t => outbox.donors.add(t.donorId));
+      outbox.requests.add(id);
+      outbox.faskes.add(req.faskesId);
+    }
+    if (req.status !== 'BROADCASTING' && req.status !== 'EXPIRED') return;
 
     const expired = await tx.donorTicket.findMany({ where: { requestId: id, status: 'RESERVED', reservedUntil: { lt: now } }, select: { id: true, donorId: true } });
     if (expired.length) {
@@ -278,6 +315,7 @@ async function tickRequest(id: string) {
       if (req.deadline && req.deadline < now) {
         await setStatus(tx, req, 'EXPIRED', 'Batas waktu panggilan terlewati', outbox);
         await releaseTickets(tx, id, ['INVITED'], 'WITHDRAWN', outbox);
+        await cancelPendingTransfers(tx, id, 'Permintaan kedaluwarsa', outbox);
       } else if (req.waveStartedAt && now.getTime() - req.waveStartedAt.getTime() >= (req.escalateMinutes || 10) * 60000) {
         const p = await progressOf(tx, req);
         if (p.uncovered > 0 && (req.radiusKm || 0) < DISPATCH.maxRadiusKm) {
@@ -303,6 +341,7 @@ export async function tick() {
       OR: [
         { status: 'BROADCASTING' },
         { status: 'EXPIRED', tickets: { some: { status: 'RESERVED', reservedUntil: { lt: now } } } },
+        { tickets: { some: staleArrival(new Date(now.getTime() - STALE_ARRIVAL_MS)) } },
       ],
     },
     select: { id: true },

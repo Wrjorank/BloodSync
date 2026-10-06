@@ -1,5 +1,5 @@
 // admin.js — super admin: impact summary, faskes licensing, staff accounts, audit log
-const audit  = { page: 1, actor: '', total: 0, pageSize: 15 };
+const audit  = { page: 1, actor: '', total: 0, pageSize: 15, seq: 0 };
 const faskes_ = { page: 1, pageSize: 15, data: [], q: '' };
 const users_  = { page: 1, pageSize: 15, data: [], q: '' };
 
@@ -10,6 +10,7 @@ const VIEWS = {
     audit: ['Audit Log', 'Jejak perubahan data sistem']
 };
 let unsubscribe = null;
+let loadSeq = 0;
 
 const STATUS_COLOR = {
     FULFILLED: 'bg-green-500', BROADCASTING: 'bg-blue-500', APPROVED: 'bg-amber-400', PENDING_VERIFICATION: 'bg-orange-400',
@@ -70,8 +71,11 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     // Pagination controls — audit
-    document.getElementById('auditPrev').addEventListener('click', () => { audit.page--; loadAudit(); });
-    document.getElementById('auditNext').addEventListener('click', () => { audit.page++; loadAudit(); });
+    document.getElementById('auditPrev').addEventListener('click', () => { audit.page = Math.max(1, audit.page - 1); loadAudit(); });
+    document.getElementById('auditNext').addEventListener('click', () => {
+        audit.page = Math.min(Math.max(1, Math.ceil(audit.total / audit.pageSize)), audit.page + 1);
+        loadAudit();
+    });
     document.getElementById('auditPageSize').addEventListener('change', (e) => {
         audit.pageSize = Number(e.target.value);
         audit.page = 1;
@@ -90,6 +94,11 @@ document.addEventListener('DOMContentLoaded', () => {
         onDone: () => { load(); loadAudit(); }
     });
 
+    onSessionEnd('admin', () => {
+        if (!unsubscribe) return;
+        logout();
+        toast('Sesi berakhir, silakan masuk kembali.', 'error');
+    });
     if (session.get('admin')) start();
 });
 
@@ -97,19 +106,26 @@ async function onLogin(e) {
     e.preventDefault();
     const err = document.getElementById('loginError');
     err.classList.add('hidden');
-    try {
-        const result = await store.staffLogin(document.getElementById('loginEmail').value, document.getElementById('loginPassword').value);
-        if (result.user.role !== 'SUPER_ADMIN') throw new Error('Akun ini bukan akun super admin');
-        session.set('admin', { token: result.token, user: result.user });
-        start();
-    } catch (error) {
-        err.textContent = error.message;
-        err.classList.remove('hidden');
-    }
+    await whileBusy(e.target.querySelector('button'), async () => {
+        try {
+            const result = await store.staffLogin(document.getElementById('loginEmail').value, document.getElementById('loginPassword').value);
+            if (result.user.role !== 'SUPER_ADMIN') throw new Error('Akun ini bukan akun super admin');
+            session.set('admin', { token: result.token, user: result.user });
+            start();
+        } catch (error) {
+            err.textContent = error.message;
+            err.classList.remove('hidden');
+        }
+    });
 }
 
 function logout() {
     unsubscribe?.();
+    unsubscribe = null;
+    // drop loads still in flight
+    loadSeq++;
+    audit.seq++;
+    document.querySelectorAll('dialog[open]').forEach(d => d.close());
     session.clear('admin');
     document.getElementById('loginView').classList.remove('hidden');
 }
@@ -136,10 +152,13 @@ function start() {
     load();
 }
 
+// the poll and post-action reloads overlap, so only the newest call may render
 async function load() {
     if (!session.get('admin')) return;
+    const seq = ++loadSeq;
     try {
         const [overview, faskesList, usersList] = await Promise.all([store.admin.overview(), store.admin.faskes(), store.admin.users()]);
+        if (seq !== loadSeq) return;
         renderOverview(overview);
         faskes_.data = faskesList;
         renderFaskes();
@@ -147,8 +166,9 @@ async function load() {
         renderUsers();
         renderShortcuts();
         await loadAudit();
-        document.getElementById('syncedAt').textContent = `Diperbarui ${fmtTime(Date.now())}`;
+        if (seq === loadSeq) document.getElementById('syncedAt').textContent = `Diperbarui ${fmtTime(Date.now())}`;
     } catch (error) {
+        if (seq !== loadSeq) return;
         if (error.status === 401 || error.status === 403) return logout();
         toast(error.message, 'error');
     }
@@ -263,11 +283,18 @@ function renderFaskes() {
             <td class="td">${actionButtons('faskes', f.id)}</td>
         </tr>`).join('') : emptyRow(6, faskes_.q ? 'Tidak ada faskes yang cocok.' : 'Belum ada faskes.');
 
-    // update select for user form
+    // update select for user form, keeping whatever is picked (even an inactive faskes being edited)
+    const keep = document.getElementById('userFaskes').value;
+    fillFaskesSelect(keep, users_.data.find(u => u.faskes?.id === keep)?.faskes.name);
+}
+
+// active faskes only, plus the kept one: editing a user of an inactive faskes must not silently move them
+function fillFaskesSelect(keep, keepName) {
     const select = document.getElementById('userFaskes');
-    const keep = select.value;
-    select.innerHTML = all.filter(f => f.isActive).map(f => `<option value="${esc(f.id)}">${esc(f.name)}</option>`).join('');
-    if (keep) select.value = keep;
+    const list = faskes_.data.filter(f => f.isActive || f.id === keep).map(f => [f.id, f.isActive ? f.name : `${f.name} (nonaktif)`]);
+    if (keep && keepName && !list.some(([id]) => id === keep)) list.push([keep, `${keepName} (nonaktif)`]);
+    select.innerHTML = list.map(([id, name]) => `<option value="${esc(id)}">${esc(name)}</option>`).join('');
+    if (keep && list.some(([id]) => id === keep)) select.value = keep;
 }
 
 function renderUsers() {
@@ -293,8 +320,17 @@ function renderUsers() {
         </tr>`).join('') : emptyRow(6, users_.q ? 'Tidak ada akun yang cocok.' : 'Belum ada akun.');
 }
 
+// rapid paging overlaps requests; only the newest one renders
 async function loadAudit() {
-    const result = await store.admin.audit(audit.page, audit.actor, audit.pageSize);
+    const seq = ++audit.seq;
+    let result;
+    try {
+        result = await store.admin.audit(audit.page, audit.actor, audit.pageSize);
+    } catch (error) {
+        if (seq === audit.seq && error.status !== 401) toast(error.message, 'error');
+        return;
+    }
+    if (seq !== audit.seq) return;
     audit.total = result.total;
     document.getElementById('auditTable').innerHTML = result.items.length ? result.items.map(a => `
         <tr class="hover:bg-slate-50/60">
@@ -380,11 +416,11 @@ function openUserDialog(u) {
     document.getElementById('userPasswordLabel').textContent = u ? 'Kata sandi baru (opsional)' : 'Kata sandi awal';
     form.elements.password.required = !u;
     form.elements.password.placeholder = u ? 'Kosongkan jika tidak diganti' : 'Min. 12, huruf besar/kecil, angka, simbol';
+    fillFaskesSelect(u?.faskes?.id || '', u?.faskes?.name);
     if (u) {
         form.elements.name.value = u.name;
         form.elements.email.value = u.email;
         form.elements.role.value = u.role;
-        if (u.faskes) form.elements.faskesId.value = u.faskes.id;
     }
     // an admin cannot demote themselves, so the system always keeps a super admin
     form.elements.role.disabled = self;
@@ -416,16 +452,18 @@ async function onSubmitFaskes(e) {
         name: f.get('name').trim(), type: f.get('type'), area: f.get('area').trim(),
         lat: Number(f.get('lat')), lng: Number(f.get('lng')), ...(f.get('address').trim() ? { address: f.get('address').trim() } : {})
     };
-    try {
-        if (id) await store.admin.updateFaskes(id, body);
-        else await store.admin.createFaskes(body);
-        e.target.reset();
-        document.getElementById('faskesDialog').close();
-        toast(id ? 'Faskes diperbarui.' : 'Faskes ditambahkan. Buat akun petugas untuk faskes ini.', 'success');
-        load();
-    } catch (error) {
-        toast(error.message, 'error');
-    }
+    await whileBusy(document.getElementById('faskesSubmit'), async () => {
+        try {
+            if (id) await store.admin.updateFaskes(id, body);
+            else await store.admin.createFaskes(body);
+            e.target.reset();
+            document.getElementById('faskesDialog').close();
+            toast(id ? 'Faskes diperbarui.' : 'Faskes ditambahkan. Buat akun petugas untuk faskes ini.', 'success');
+            load();
+        } catch (error) {
+            if (error.status !== 401) toast(error.message, 'error');
+        }
+    });
 }
 
 async function onSubmitUser(e) {
@@ -436,18 +474,20 @@ async function onSubmitUser(e) {
     const body = { name: form.elements.name.value.trim(), email: form.elements.email.value.trim(), role: form.elements.role.value };
     if (form.elements.password.value) body.password = form.elements.password.value;
     if (body.role === 'FASKES_STAFF') body.faskesId = form.elements.faskesId.value;
-    try {
-        const result = id ? await store.admin.updateUser(id, body) : await store.admin.createUser(body);
-        form.reset();
-        document.getElementById('userDialog').close();
-        // changing your own password ends your own session too
-        if (result.self && result.sessionsRevoked) {
-            toast('Kata sandi Anda diganti. Silakan masuk kembali.', 'success');
-            return logout();
+    await whileBusy(document.getElementById('userSubmit'), async () => {
+        try {
+            const result = id ? await store.admin.updateUser(id, body) : await store.admin.createUser(body);
+            form.reset();
+            document.getElementById('userDialog').close();
+            // changing your own password ends your own session too
+            if (result.self && result.sessionsRevoked) {
+                toast('Kata sandi Anda diganti. Silakan masuk kembali.', 'success');
+                return logout();
+            }
+            toast(id ? (result.sessionsRevoked ? 'Akun diperbarui. Pemilik akun perlu masuk ulang.' : 'Akun diperbarui.') : 'Akun dibuat.', 'success');
+            load();
+        } catch (error) {
+            if (error.status !== 401) toast(error.message, 'error');
         }
-        toast(id ? (result.sessionsRevoked ? 'Akun diperbarui. Pemilik akun perlu masuk ulang.' : 'Akun diperbarui.') : 'Akun dibuat.', 'success');
-        load();
-    } catch (error) {
-        toast(error.message, 'error');
-    }
+    });
 }

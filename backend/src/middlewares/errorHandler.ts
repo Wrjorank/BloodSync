@@ -18,8 +18,9 @@ export const errorHandler = (err: unknown, req: Request, res: Response, _next: N
     const max = req.path.includes('/import/') ? '2 MB' : '5 MB';
     error = new AppError(400, err.code === 'LIMIT_FILE_SIZE' ? `Ukuran berkas maksimal ${max}` : err.message, 'UPLOAD_FAILED');
   } else if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2002') {
-    const onEmail = String(err.meta?.target ?? '').includes('email');
-    error = new AppError(409, onEmail ? 'Email sudah dipakai akun lain' : 'Data sudah terdaftar', 'DUPLICATE');
+    const target = String(err.meta?.target ?? '');
+    const message = target.includes('email') ? 'Email sudah dipakai akun lain' : /faskes_name|^name$/.test(target) ? 'Nama faskes sudah dipakai' : 'Data sudah terdaftar';
+    error = new AppError(409, message, 'DUPLICATE');
   } else if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2003') {
     error = new AppError(400, 'Data rujukan tidak ditemukan', 'INVALID_REFERENCE');
   } else if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2025') {

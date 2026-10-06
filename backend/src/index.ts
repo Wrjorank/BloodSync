@@ -22,7 +22,7 @@ const io = new Server(httpServer, { cors: { origin: corsOrigin } });
 
 app.disable('x-powered-by');
 app.set('trust proxy', env.trustProxy);
-app.use(cors({ origin: corsOrigin, exposedHeaders: ['Content-Disposition', 'X-Export-Rows'] }));
+app.use(cors({ origin: corsOrigin, exposedHeaders: ['Content-Disposition', 'X-Export-Rows', 'X-Export-Truncated', 'X-Import-Rows'] }));
 app.use(express.json({ limit: '100kb' }));
 app.use((_req, res, next) => {
   res.setHeader('X-Content-Type-Options', 'nosniff');

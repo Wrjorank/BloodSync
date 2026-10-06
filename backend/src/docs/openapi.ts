@@ -701,7 +701,7 @@ export const openApiSpec = {
       get: {
         tags: ['Faskes - Export/Import'], summary: 'Export data faskes ke Excel', security: staff,
         parameters: [{ name: 'dataset', in: 'path', required: true, schema: str({ enum: [...STAFF_DATASETS] }) }, ...exportQuery],
-        responses: { 200: xlsxFile('File .xlsx', { 'X-Export-Rows': { schema: int(), description: 'Jumlah baris' } }), ...common, 429: errRef('TooMany') },
+        responses: { 200: xlsxFile('File .xlsx', { 'X-Export-Rows': { schema: int(), description: 'Jumlah baris' }, 'X-Export-Truncated': { schema: str({ enum: ['1'] }), description: 'Ada bila hasil dipotong pada 10.000 baris terbaru (file juga memuat baris catatan di bawah)' } }), ...common, 429: errRef('TooMany') },
       },
     },
     '/faskes/me/import/{dataset}/template': {
@@ -714,6 +714,7 @@ export const openApiSpec = {
     '/faskes/me/import/{dataset}': {
       post: {
         tags: ['Faskes - Export/Import'], summary: 'Import Excel (preview lalu commit)', security: staff,
+        description: 'Stock opname: template berisi kolom "Stok sistem (jangan diubah)" (stok saat unduh) dan Jumlah (hitungan fisik). Yang diterapkan adalah selisih Jumlah - Stok sistem ke stok terkini; baris yang membuat stok minus ditolak (422 IMPORT_INVALID saat commit). File template lama tanpa kolom Stok sistem ditolak 400 TEMPLATE_OUTDATED. Kolom preview: Komponen, Golongan, Stok sistem saat unduh, Hitungan fisik, Selisih, Stok sekarang, Sesudah.',
         parameters: [{ name: 'dataset', in: 'path', required: true, schema: str({ enum: [...STAFF_IMPORTS] }) }, commitQuery],
         requestBody: { required: true, content: { 'multipart/form-data': { schema: obj({ file: str({ format: 'binary', description: '.xlsx maks 2 MB' }) }) } } },
         responses: {
@@ -732,16 +733,16 @@ export const openApiSpec = {
       post: {
         tags: ['Admin'], summary: 'Tambah faskes', description: 'Baris stok 0 dibuat otomatis untuk semua komponen × golongan.', security: admin,
         requestBody: json(faskesBody),
-        responses: { 201: ok(ref('Faskes'), 'Ditambahkan', 'Faskes ditambahkan'), ...common },
+        responses: { 201: ok(ref('Faskes'), 'Ditambahkan', 'Faskes ditambahkan'), ...common, 409: errRef('Conflict') },
       },
     },
     '/admin/faskes/{id}': {
       patch: {
         tags: ['Admin'], summary: 'Ubah faskes', security: admin, parameters: [idParam], requestBody: json(faskesBody),
-        responses: { 200: ok(ref('Faskes'), 'Diperbarui', 'Faskes diperbarui'), ...common, 404: errRef('NotFound') },
+        responses: { 200: ok(ref('Faskes'), 'Diperbarui', 'Faskes diperbarui'), ...common, 404: errRef('NotFound'), 409: errRef('Conflict') },
       },
       delete: {
-        tags: ['Admin'], summary: 'Hapus faskes', description: 'Ditolak (409 HAS_USERS / HAS_HISTORY) bila masih punya akun atau riwayat; nonaktifkan saja.', security: admin, parameters: [idParam],
+        tags: ['Admin'], summary: 'Hapus faskes', description: 'Ditolak (409 HAS_USERS / HAS_HISTORY / IN_USE) bila masih punya akun, riwayat, atau data lain yang merujuk; nonaktifkan saja.', security: admin, parameters: [idParam],
         responses: { 200: ok(obj({ deleted: bool({ example: true }) }), 'Dihapus', 'Faskes dihapus'), ...common, 404: errRef('NotFound'), 409: errRef('Conflict') },
       },
     },
@@ -778,15 +779,15 @@ export const openApiSpec = {
         },
       },
       delete: {
-        tags: ['Admin'], summary: 'Hapus akun', description: 'Tidak bisa menghapus akun sendiri.', security: admin, parameters: [idParam],
-        responses: { 200: ok(obj({ deleted: bool({ example: true }) }), 'Dihapus', 'Akun dihapus'), ...common, 404: errRef('NotFound') },
+        tags: ['Admin'], summary: 'Hapus akun', description: 'Tidak bisa menghapus akun sendiri atau super admin aktif terakhir (409 LAST_SUPER_ADMIN).', security: admin, parameters: [idParam],
+        responses: { 200: ok(obj({ deleted: bool({ example: true }) }), 'Dihapus', 'Akun dihapus'), ...common, 404: errRef('NotFound'), 409: errRef('Conflict') },
       },
     },
     '/admin/users/{id}/active': {
       patch: {
         tags: ['Admin'], summary: 'Aktif / nonaktifkan akun', security: admin, parameters: [idParam],
         requestBody: json(obj({ isActive: bool() })),
-        responses: { 200: ok(obj({ id: str(), isActive: bool() }), 'Diperbarui', 'Status akun diperbarui'), ...common, 404: errRef('NotFound') },
+        responses: { 200: ok(obj({ id: str(), isActive: bool() }), 'Diperbarui', 'Status akun diperbarui'), ...common, 404: errRef('NotFound'), 409: errRef('Conflict') },
       },
     },
     '/admin/audit': {
@@ -804,7 +805,7 @@ export const openApiSpec = {
       get: {
         tags: ['Admin - Export/Import'], summary: 'Export data ke Excel', security: admin,
         parameters: [{ name: 'dataset', in: 'path', required: true, schema: str({ enum: [...ADMIN_DATASETS] }) }, ...exportQuery],
-        responses: { 200: xlsxFile('File .xlsx', { 'X-Export-Rows': { schema: int(), description: 'Jumlah baris' } }), ...common, 429: errRef('TooMany') },
+        responses: { 200: xlsxFile('File .xlsx', { 'X-Export-Rows': { schema: int(), description: 'Jumlah baris' }, 'X-Export-Truncated': { schema: str({ enum: ['1'] }), description: 'Ada bila hasil dipotong pada 10.000 baris terbaru (file juga memuat baris catatan di bawah)' } }), ...common, 429: errRef('TooMany') },
       },
     },
     '/admin/import/{dataset}/template': {

@@ -23,7 +23,7 @@ export function authenticate(req: Request, _res: Response, next: NextFunction) {
 
 // tokens outlive an admin's decision, so every staff call re-checks the account against the database:
 // still active, and still the same role / faskes / password generation the token was issued for
-async function assertActiveStaff(a: Extract<AuthPayload, { kind: 'staff' }>) {
+export async function assertActiveStaff(a: Extract<AuthPayload, { kind: 'staff' }>) {
   const user = await prisma.user.findUnique({
     where: { id: a.sub },
     select: { isActive: true, role: true, faskesId: true, tokenVersion: true, faskes: { select: { isActive: true } } },
