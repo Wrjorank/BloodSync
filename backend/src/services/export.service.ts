@@ -21,10 +21,13 @@ export interface ExportFile {
   buffer: Buffer;
   filename: string;
   rows: number;
+  // more rows matched than MAX_ROWS; the oldest were left out
+  truncated: boolean;
 }
 
-// newest rows first; anything older needs a narrower date range
+// newest rows first; anything older needs a narrower date range. queries fetch one extra row to detect the cut
 export const MAX_ROWS = 10000;
+const TRUNCATED_NOTE = 'Data dipotong pada 10.000 baris terbaru, persempit rentang tanggal';
 
 type CellValue = string | number | boolean | Date | null | undefined;
 interface Col<T> {
@@ -47,7 +50,7 @@ function range(f: ExportFilter) {
 
 // every value is typed explicitly: a string is always written as text, so "=cmd|..." typed by a user
 // lands in the sheet as plain text and never becomes a formula
-async function workbook<T>(sheet: string, rows: T[], cols: Col<T>[]): Promise<Buffer> {
+async function workbook<T>(sheet: string, rows: T[], cols: Col<T>[], truncated: boolean): Promise<Buffer> {
   const header = cols.map(c => ({ value: c.header, type: String, fontWeight: 'bold' as const, textColor: '#FFFFFF', backgroundColor: '#E11D48' }));
   const body = rows.map(r => cols.map(c => {
     const v = c.value(r);
@@ -57,7 +60,9 @@ async function workbook<T>(sheet: string, rows: T[], cols: Col<T>[]): Promise<Bu
     if (typeof v === 'boolean') return { value: v ? 'Ya' : 'Tidak', type: String };
     return { value: v, type: String };
   }));
-  return writeXlsxFile([header, ...body] as SheetData, {
+  // the cut rows are the oldest, so the note sits at the bottom where they would have been
+  const note = truncated ? [[], [{ value: TRUNCATED_NOTE, type: String, fontWeight: 'bold' as const, textColor: '#E11D48' }]] : [];
+  return writeXlsxFile([header, ...body, ...note] as SheetData, {
     sheet,
     stickyRowsCount: 1,
     columns: cols.map(c => ({ width: c.width ?? 16 })),
@@ -68,8 +73,10 @@ const stamp = () => new Date(Date.now() + WIB_MS).toISOString().slice(0, 16).rep
 const slug = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
 const minutesBetween = (a: Date, b: Date) => Math.round((b.getTime() - a.getTime()) / 60000);
 
-async function file<T>(name: string, sheet: string, rows: T[], cols: Col<T>[]): Promise<ExportFile> {
-  return { buffer: await workbook(sheet, rows, cols), filename: `bloodsync_${name}_${stamp()}.xlsx`, rows: rows.length };
+async function file<T>(name: string, sheet: string, all: T[], cols: Col<T>[]): Promise<ExportFile> {
+  const truncated = all.length > MAX_ROWS;
+  const rows = truncated ? all.slice(0, MAX_ROWS) : all;
+  return { buffer: await workbook(sheet, rows, cols, truncated), filename: `bloodsync_${name}_${stamp()}.xlsx`, rows: rows.length, truncated };
 }
 
 export const exportService = {
@@ -95,7 +102,7 @@ export const exportService = {
 
       case 'mutasi-stok': {
         const rows = await prisma.stockMovement.findMany({
-          where: { faskesId, createdAt: range(f) }, orderBy: { createdAt: 'desc' }, take: MAX_ROWS,
+          where: { faskesId, createdAt: range(f) }, orderBy: { createdAt: 'desc' }, take: MAX_ROWS + 1,
           include: { request: { select: { code: true } } },
         });
         return file(name, 'Mutasi Stok', rows, [
@@ -110,7 +117,7 @@ export const exportService = {
       }
 
       case 'permintaan': {
-        const rows = await prisma.bloodRequest.findMany({ where: { faskesId, createdAt: range(f) }, orderBy: { createdAt: 'desc' }, take: MAX_ROWS });
+        const rows = await prisma.bloodRequest.findMany({ where: { faskesId, createdAt: range(f) }, orderBy: { createdAt: 'desc' }, take: MAX_ROWS + 1 });
         return file(name, 'Permintaan', rows, [
           { header: 'Kode', width: 12, value: r => r.code },
           { header: 'Dibuat (WIB)', width: 18, value: r => r.createdAt },
@@ -135,7 +142,7 @@ export const exportService = {
 
       case 'tiket-donor': {
         const rows = await prisma.donorTicket.findMany({
-          where: { request: { faskesId }, invitedAt: range(f) }, orderBy: { invitedAt: 'desc' }, take: MAX_ROWS,
+          where: { request: { faskesId }, invitedAt: range(f) }, orderBy: { invitedAt: 'desc' }, take: MAX_ROWS + 1,
           include: { donor: { select: { name: true, bloodType: true } }, request: { select: { code: true } } },
         });
         return file(name, 'Tiket Donor', rows, [
@@ -160,7 +167,7 @@ export const exportService = {
 
       case 'mutasi-antarfaskes': {
         const rows = await prisma.stockTransfer.findMany({
-          where: { OR: [{ fromFaskesId: faskesId }, { toFaskesId: faskesId }], createdAt: range(f) }, orderBy: { createdAt: 'desc' }, take: MAX_ROWS,
+          where: { OR: [{ fromFaskesId: faskesId }, { toFaskesId: faskesId }], createdAt: range(f) }, orderBy: { createdAt: 'desc' }, take: MAX_ROWS + 1,
           include: { fromFaskes: { select: { name: true } }, toFaskes: { select: { name: true } }, request: { select: { code: true } } },
         });
         return file(name, 'Mutasi Antarfaskes', rows, [
@@ -184,7 +191,7 @@ export const exportService = {
     switch (dataset) {
       case 'audit': {
         const rows = await prisma.auditLog.findMany({
-          where: { createdAt: range(f), ...(f.actor ? { actor: { contains: f.actor } } : {}) }, orderBy: { createdAt: 'desc' }, take: MAX_ROWS,
+          where: { createdAt: range(f), ...(f.actor ? { actor: { contains: f.actor } } : {}) }, orderBy: { createdAt: 'desc' }, take: MAX_ROWS + 1,
         });
         return file('audit-log', 'Audit Log', rows, [
           { header: 'Waktu (WIB)', width: 18, value: r => r.createdAt },
@@ -231,7 +238,7 @@ export const exportService = {
 
       case 'permintaan': {
         const rows = await prisma.bloodRequest.findMany({
-          where: { createdAt: range(f) }, orderBy: { createdAt: 'desc' }, take: MAX_ROWS, include: { faskes: { select: { name: true } } },
+          where: { createdAt: range(f) }, orderBy: { createdAt: 'desc' }, take: MAX_ROWS + 1, include: { faskes: { select: { name: true } } },
         });
         return file('permintaan-semua-faskes', 'Permintaan', rows, [
           { header: 'Kode', width: 12, value: r => r.code },
@@ -250,7 +257,7 @@ export const exportService = {
 
       case 'pendonor': {
         const rows = await prisma.donor.findMany({
-          where: env.isProduction ? { isSimulated: false } : {}, orderBy: { createdAt: 'desc' }, take: MAX_ROWS,
+          where: env.isProduction ? { isSimulated: false } : {}, orderBy: { createdAt: 'desc' }, take: MAX_ROWS + 1,
           include: { _count: { select: { donations: true } } },
         });
         return file('pendonor', 'Pendonor', rows, [

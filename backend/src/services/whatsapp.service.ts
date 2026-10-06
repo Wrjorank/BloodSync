@@ -1,12 +1,13 @@
 import prisma from '../config/prisma';
+import { env } from '../config/env';
 import { AppError } from '../utils/AppError';
 import { maskPhone, normalizePhone } from '../utils/helpers';
 import { sendWhatsapp } from './notification.service';
 import { ticketService } from './ticket.service';
 
-const HELP = 'Balas *1* untuk menyanggupi atau *2* untuk menolak panggilan darurat terbaru Anda.';
+const HELP = 'Balas *1* untuk menyanggupi atau *2* untuk menolak panggilan darurat Anda.';
 
-// inbound replies from the fonnte webhook: "1" accepts, "2" declines the donor's newest open invite
+// inbound replies from the fonnte webhook: "1" accepts, "2" declines the donor's single open invite
 export const whatsappService = {
   async handleReply(sender: string, message: string) {
     const phone = normalizePhone(sender);
@@ -15,12 +16,24 @@ export const whatsappService = {
 
     const donor = await prisma.donor.findUnique({ where: { phone }, select: { id: true } });
     if (!donor) return;
-    const ticket = await prisma.donorTicket.findFirst({
-      where: { donorId: donor.id, status: 'INVITED' },
+    const open = await prisma.donorTicket.findMany({
+      where: { donorId: donor.id, status: 'INVITED', request: { status: 'BROADCASTING' } },
       orderBy: { invitedAt: 'desc' },
       include: { request: { include: { faskes: true } } },
     });
-    if (!ticket) return reply(phone, `Tidak ada panggilan darurat yang menunggu jawaban Anda. Terima kasih! 🙏`);
+    if (!open.length) return reply(phone, `Tidak ada panggilan darurat yang menunggu jawaban Anda. Terima kasih! 🙏`);
+    // several open calls: a bare "1" is ambiguous, so the donor picks one in the app
+    if (open.length > 1) {
+      return reply(phone, [
+        `Anda punya ${open.length} panggilan darurat yang menunggu jawaban:`,
+        ``,
+        ...open.map((t, i) => `${i + 1}. ${t.request.faskes.name} (${t.request.code})`),
+        ``,
+        `Silakan pilih dan jawab langsung di aplikasi:`,
+        `${env.publicAppUrl}/pendonor.html`,
+      ].join('\n'));
+    }
+    const ticket = open[0];
 
     try {
       const result = await ticketService.respond(donor.id, ticket.id, answer === '1');

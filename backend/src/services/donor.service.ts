@@ -157,8 +157,10 @@ export const donorService = {
 
   // opting out releases open invites and reserved slots so their requests re-invite backups right away
   async deactivate(donorId: string) {
-    const open = await prisma.donorTicket.findMany({ where: { donorId, status: { in: ['INVITED', 'RESERVED'] } }, select: { requestId: true } });
+    // inactive first: a wave that locks the donor row after this commit skips it, one that locked it before has
+    // committed its invite by the time the update returns, so the query below sees it
     await prisma.donor.update({ where: { id: donorId }, data: { isActive: false } });
+    const open = await prisma.donorTicket.findMany({ where: { donorId, status: { in: ['INVITED', 'RESERVED'] } }, select: { requestId: true } });
     for (const requestId of new Set(open.map(t => t.requestId))) {
       await runInTx(async (tx, outbox) => {
         const req = await lockRequest(tx, requestId);

@@ -35,6 +35,12 @@ export const redisStatus = () => (client ? client.status : 'disabled');
 const memory = new Map<string, { value: string; expiresAt: number }>();
 const useRedis = () => client?.status === 'ready';
 
+// keys nobody reads again (one-off ips, otp of abandoned logins) would otherwise pile up forever
+setInterval(() => {
+  const now = Date.now();
+  for (const [key, hit] of memory) if (hit.expiresAt < now) memory.delete(key);
+}, 60000).unref();
+
 function memGet(key: string) {
   const hit = memory.get(key);
   if (!hit) return null;
@@ -68,15 +74,18 @@ export const kv = {
     return true;
   },
 
+  // atomic counter. the window starts with the first hit (SET NX EX) and later hits never extend it;
+  // both commands run in one MULTI so the key can never exist without a ttl
   async incr(key: string, ttlSec: number): Promise<number> {
     if (useRedis()) {
-      const n = await client!.incr(key);
-      if (n === 1) await client!.expire(key, ttlSec);
-      return n;
+      const res = await client!.multi().set(key, '0', 'EX', ttlSec, 'NX').incr(key).exec();
+      const [err, n] = res?.[1] ?? [new Error('redis multi aborted'), null];
+      if (err) throw err;
+      return Number(n);
     }
-    const n = Number(memGet(key) || 0) + 1;
-    const existing = memory.get(key);
-    memory.set(key, { value: String(n), expiresAt: existing && n > 1 ? existing.expiresAt : Date.now() + ttlSec * 1000 });
+    const existing = memGet(key) === null ? undefined : memory.get(key);
+    const n = Number(existing?.value || 0) + 1;
+    memory.set(key, { value: String(n), expiresAt: existing ? existing.expiresAt : Date.now() + ttlSec * 1000 });
     return n;
   },
 };

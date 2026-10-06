@@ -12,7 +12,7 @@ let LOW_STOCK = 2;
 // server data from the last load
 const data = { faskes: null, stock: [], active: [], history: [], options: {}, arrivals: [], movements: [], pool: null, transfers: { incoming: [], outgoing: [] } };
 // ui-only state that must survive re-renders
-const ui = { checks: {}, rejecting: {}, dispatch: {}, busy: false, modal: null, lastPending: null, unsubscribe: null };
+const ui = { checks: {}, rejecting: {}, dispatch: {}, busy: false, modal: null, lastPending: null, unsubscribe: null, seq: 0 };
 
 document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('loginForm').addEventListener('submit', onLogin);
@@ -34,7 +34,7 @@ document.addEventListener('DOMContentLoaded', () => {
         e.preventDefault();
         scan(document.getElementById('scanCode').value);
     });
-    document.getElementById('btnCamera').addEventListener('click', () => (camera.instance ? stopCamera() : startCamera()));
+    document.getElementById('btnCamera').addEventListener('click', () => (camera.instance || camera.busy ? stopCamera() : startCamera()));
     document.getElementById('adjustType').innerHTML = BLOOD_TYPES.map(t => `<option>${t}</option>`).join('');
     document.getElementById('adjustForm').addEventListener('submit', onAdjust);
 
@@ -42,6 +42,8 @@ document.addEventListener('DOMContentLoaded', () => {
     requests.addEventListener('click', onRequestClick);
     requests.addEventListener('change', onRequestChange);
     document.getElementById('arrivalsContainer').addEventListener('click', (e) => {
+        const release = e.target.closest('[data-release]');
+        if (release) return releaseTicket(release.dataset.release);
         const btn = e.target.closest('[data-code]');
         if (btn) scan(btn.dataset.code);
     });
@@ -62,6 +64,11 @@ document.addEventListener('DOMContentLoaded', () => {
         LOW_STOCK = m.dispatch.lowStockThreshold;
         Object.assign(CONFIG_SCREENING, m.screening);
     }).catch(() => undefined);
+    onSessionEnd('staff', () => {
+        if (!ui.unsubscribe) return;
+        logout();
+        toast('Sesi berakhir, silakan masuk kembali.', 'error');
+    });
     if (session.get('staff')) start();
     else showLogin(true);
 });
@@ -88,19 +95,25 @@ async function onLogin(e) {
     e.preventDefault();
     const err = document.getElementById('loginError');
     err.classList.add('hidden');
-    try {
-        const result = await store.staffLogin(document.getElementById('loginEmail').value, document.getElementById('loginPassword').value);
-        if (result.user.role !== 'FASKES_STAFF') throw new Error('Akun ini bukan akun petugas faskes');
-        session.set('staff', { token: result.token, faskes: result.faskes, user: result.user });
-        start();
-    } catch (error) {
-        err.textContent = error.message;
-        err.classList.remove('hidden');
-    }
+    await whileBusy(e.target.querySelector('button'), async () => {
+        try {
+            const result = await store.staffLogin(document.getElementById('loginEmail').value, document.getElementById('loginPassword').value);
+            if (result.user.role !== 'FASKES_STAFF') throw new Error('Akun ini bukan akun petugas faskes');
+            session.set('staff', { token: result.token, faskes: result.faskes, user: result.user });
+            start();
+        } catch (error) {
+            err.textContent = error.message;
+            err.classList.remove('hidden');
+        }
+    });
 }
 
 function logout() {
     ui.unsubscribe?.();
+    ui.unsubscribe = null;
+    ui.seq++; // drop any load still in flight
+    stopCamera();
+    closeScreening();
     session.clear('staff');
     showLogin(true);
 }
@@ -115,8 +128,10 @@ function start() {
 }
 
 // fetch everything the dashboard shows, then render once
+// poll, socket and post-action reloads overlap, so only the newest call may render
 async function load() {
     if (!session.get('staff')) return;
+    const seq = ++ui.seq;
     try {
         const [faskes, stock, active, history, arrivals, movements, pool, transfers] = await Promise.all([
             store.staff.me(), store.staff.stock(), store.staff.requests('active'), store.staff.requests('history'),
@@ -124,9 +139,11 @@ async function load() {
         ]);
         const needOptions = active.filter(r => r.status === 'APPROVED' || r.status === 'BROADCASTING');
         const options = await Promise.all(needOptions.map(r => store.staff.stockOptions(r.id)));
+        if (seq !== ui.seq) return;
         Object.assign(data, { faskes, stock, active, history, arrivals, movements, pool, transfers, options: Object.fromEntries(needOptions.map((r, i) => [r.id, options[i]])) });
         render();
     } catch (error) {
+        if (seq !== ui.seq) return;
         if (error.status === 401) return logout();
         toast(error.message, 'error');
     }
@@ -143,6 +160,7 @@ async function act(fn, success) {
         await load();
         return result;
     } catch (error) {
+        if (error.status === 401) return; // the session-end handler already shows the login
         toast(error.message, 'error');
         await load();
     } finally {
@@ -410,8 +428,8 @@ function broadcastPanel(req, p) {
     const rows = tickets.map(t => {
         const action = {
             RESERVED: `<button data-action="noshow" data-ticket="${t.id}" class="text-xs font-semibold text-red-500 hover:underline">Tidak datang</button>`,
-            ARRIVED: `<button data-action="screen" data-code="${t.code}" class="text-xs font-semibold text-blue-600 hover:underline">Skrining</button>`,
-            SCREENED: `<button data-action="screen" data-code="${t.code}" class="text-xs font-semibold text-blue-600 hover:underline">Ambil darah</button>`
+            ARRIVED: `<button data-action="screen" data-code="${t.code}" class="text-xs font-semibold text-blue-600 hover:underline">Skrining</button>${releaseButton(t.id)}`,
+            SCREENED: `<button data-action="screen" data-code="${t.code}" class="text-xs font-semibold text-blue-600 hover:underline">Ambil darah</button>${releaseButton(t.id)}`
         }[t.status] || '';
         const extra = t.status === 'RESERVED' ? `<div class="text-[11px] text-blue-600">ETA ${t.etaMin} mnt • slot ${countdown(t.reservedUntil)}</div>` : '';
         return `
@@ -517,6 +535,9 @@ function onRequestClick(e) {
         case 'screen':
             scan(btn.dataset.code);
             break;
+        case 'release':
+            releaseTicket(btn.dataset.ticket);
+            break;
         case 'close':
             if (confirm('Tutup panggilan ini? Pendonor yang diundang akan menerima pembatalan.')) act(() => store.staff.close(id), 'Permintaan ditutup.');
             break;
@@ -526,7 +547,11 @@ function onRequestClick(e) {
 async function onAdjust(e) {
     e.preventDefault();
     const f = new FormData(e.target);
-    const body = { component: f.get('component'), bloodType: f.get('bloodType'), delta: Number(f.get('delta')), note: String(f.get('note')).trim() };
+    const delta = Number(f.get('delta'));
+    if (!Number.isInteger(delta) || delta === 0) {
+        return toast('Jumlah kantong harus bilangan bulat selain 0: positif untuk stok masuk, negatif untuk keluar.', 'error');
+    }
+    const body = { component: f.get('component'), bloodType: f.get('bloodType'), delta, note: String(f.get('note')).trim() };
     const ok = await act(() => store.staff.adjustStock(body), r => `Stok ${body.component} ${body.bloodType} sekarang ${r.quantity} kantong.`);
     if (ok) {
         e.target.reset();
@@ -534,15 +559,29 @@ async function onAdjust(e) {
     }
 }
 
+// secondary action for a donor who checked in but left before the blood was taken
+function releaseButton(id, extra = '') {
+    return `<button type="button" data-action="release" data-release="${esc(id)}" data-ticket="${esc(id)}" class="text-xs font-semibold text-slate-400 hover:text-red-600 hover:underline ${extra}">Pendonor pergi / batalkan tiket</button>`;
+}
+
+async function releaseTicket(id) {
+    if (!id || !confirm('Tiket dilepas dan pendonor cadangan akan dipanggil. Lanjutkan?')) return;
+    const ok = await act(() => store.staff.noShow(id), 'Tiket dibatalkan. Sistem mengundang pendonor cadangan.');
+    if (ok && ui.modal?.ticket.id === id) closeScreening();
+}
+
 function renderArrivals() {
     document.getElementById('arrivalsContainer').innerHTML = data.arrivals.length ? data.arrivals.map(t => `
-        <button data-code="${t.code}" class="w-full text-left flex items-center justify-between gap-3 border border-slate-200 hover:border-blue-300 hover:bg-blue-50/50 rounded-xl px-3 py-2 transition-colors">
-            <div class="min-w-0">
-                <div class="text-sm font-semibold text-slate-700 truncate">${esc(t.donor.name)} • ${esc(t.donor.bloodType)}</div>
-                <div class="text-[11px] text-slate-500">${t.code} • ${t.status === 'RESERVED' ? `ETA ${t.etaMin} mnt` : TICKET_STATUS[t.status]}</div>
-            </div>
-            <i class="fa-solid fa-qrcode text-slate-400"></i>
-        </button>`).join('') : emptyState('fa-person-walking', 'Belum ada pendonor dalam perjalanan.');
+        <div class="border border-slate-200 hover:border-blue-300 hover:bg-blue-50/50 rounded-xl transition-colors">
+            <button data-code="${esc(t.code)}" class="w-full text-left flex items-center justify-between gap-3 px-3 py-2">
+                <div class="min-w-0">
+                    <div class="text-sm font-semibold text-slate-700 truncate">${esc(t.donor.name)} • ${esc(t.donor.bloodType)}</div>
+                    <div class="text-[11px] text-slate-500">${esc(t.code)} • ${t.status === 'RESERVED' ? `ETA ${t.etaMin} mnt` : TICKET_STATUS[t.status]}</div>
+                </div>
+                <i class="fa-solid fa-qrcode text-slate-400"></i>
+            </button>
+            ${t.status === 'ARRIVED' || t.status === 'SCREENED' ? `<div class="px-3 pb-2 -mt-1">${releaseButton(t.id)}</div>` : ''}
+        </div>`).join('') : emptyState('fa-person-walking', 'Belum ada pendonor dalam perjalanan.');
 }
 
 // scanning an already-arrived ticket just reopens it, so this also serves as "open screening"
@@ -559,7 +598,8 @@ async function scan(code) {
 }
 
 // camera qr scanning; the library is fetched on first use so the dashboard stays light
-const camera = { instance: null, busy: false };
+// token changes on every stop, so a start that resolves after the user left knows to shut itself down
+const camera = { instance: null, busy: false, token: 0 };
 const QR_LIB = 'vendor/html5-qrcode.min.js';
 
 function loadQrLib() {
@@ -585,14 +625,22 @@ function setCameraUi(on, hint = '') {
 async function startCamera() {
     if (camera.busy) return;
     camera.busy = true;
+    const token = ++camera.token;
     setCameraUi(true, 'Memulai kamera…');
     try {
         await loadQrLib();
+        if (token !== camera.token) return;
         const reader = new Html5Qrcode('qrReader');
         await reader.start({ facingMode: 'environment' }, { fps: 10, qrbox: (w, h) => { const s = Math.floor(Math.min(w, h) * 0.7); return { width: s, height: s }; } }, onQrDecoded, () => undefined);
+        if (token !== camera.token) {
+            // stopped while the camera was starting: release it right away
+            await reader.stop().then(() => reader.clear()).catch(() => undefined);
+            return;
+        }
         camera.instance = reader;
         setCameraUi(true, 'Arahkan kamera ke QR tiket pendonor');
     } catch (error) {
+        if (token !== camera.token) return;
         setCameraUi(false);
         const denied = /permission|notallowed/i.test(String(error?.name || error));
         toast(denied ? 'Izin kamera ditolak. Aktifkan akses kamera di browser atau ketik kode tiket.' : (error.message || 'Kamera tidak tersedia. Ketik kode tiket secara manual.'), 'error');
@@ -602,6 +650,7 @@ async function startCamera() {
 }
 
 async function stopCamera() {
+    camera.token++;
     const reader = camera.instance;
     camera.instance = null;
     if (reader) await reader.stop().then(() => reader.clear()).catch(() => undefined);
@@ -660,11 +709,13 @@ function renderScreening() {
                 </div>
                 <p class="text-[11px] text-slate-400">Batas: Hb ${s.hbMin}–${s.hbMax} g/dL • tensi ${s.sysMin}–${s.sysMax}/${s.diaMin}–${s.diaMax} mmHg • berat ≥ ${s.weightMin} kg</p>
                 <button class="btn-dark w-full py-3 text-sm">Periksa kelayakan</button>
+                ${releaseButton(t.id, 'block w-full text-center py-1')}
             </form>`,
         SCREENED: () => `
             ${vitals}
             <div class="bg-green-50 border border-green-200 text-green-800 rounded-xl p-3 text-sm font-medium mb-4"><i class="fa-solid fa-circle-check mr-1"></i> Lolos skrining. Lanjutkan pengambilan darah.</div>
-            <button data-complete class="btn-primary w-full py-3 text-sm">Selesai Transfusi/Pengambilan</button>`,
+            <button data-complete class="btn-primary w-full py-3 text-sm">Selesai Transfusi/Pengambilan</button>
+            ${releaseButton(t.id, 'block w-full text-center py-1 mt-3')}`,
         SCREENING_FAILED: () => `
             ${vitals}
             <div class="bg-red-50 border border-red-200 text-red-800 rounded-xl p-3 text-sm mb-4">
@@ -700,6 +751,8 @@ async function onScreeningSubmit(e) {
 
 async function onScreeningClick(e) {
     if (e.target.closest('[data-close]')) return closeScreening();
+    const release = e.target.closest('[data-release]');
+    if (release) return releaseTicket(release.dataset.release);
     if (!e.target.closest('[data-complete]')) return;
     const t = ui.modal.ticket;
     const result = await act(() => store.staff.collect(t.id), 'Pengambilan selesai. Kebutuhan & inventaris diperbarui.');

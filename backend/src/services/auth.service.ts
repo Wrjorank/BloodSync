@@ -19,10 +19,11 @@ const hash = (code: string) => crypto.createHash('sha256').update(code).digest('
 const DUMMY_HASH = bcrypt.hashSync(crypto.randomBytes(16).toString('hex'), 12);
 
 export const authService = {
-  async staffLogin(rawEmail: string, password: string) {
+  async staffLogin(rawEmail: string, password: string, ip: string) {
     const email = rawEmail.toLowerCase();
-    // per-account lock on top of the per-ip limit, so a password spray from many ips still stops
-    const failKey = `login:fail:${email}`;
+    // lock per account + ip on top of the per-ip route limit: guessing one account stops after 5 tries,
+    // while a stranger failing on purpose from another ip cannot lock the real owner out
+    const failKey = `login:fail:${email}:${ip}`;
     if (Number(await kv.get(failKey)) >= MAX_LOGIN_FAILS) throw tooMany('Terlalu banyak percobaan masuk. Coba lagi dalam 15 menit.');
     const user = await prisma.user.findUnique({ where: { email }, include: { faskes: true } });
     // same message for unknown email and wrong password so accounts cannot be enumerated
@@ -46,7 +47,9 @@ export const authService = {
     const sends = await kv.incr(`otp:sends:${phone}`, 600);
     if (sends > MAX_SENDS_PER_WINDOW) throw tooMany('OTP sudah dikirim 3 kali. Coba lagi dalam 10 menit.');
     const code = randomDigits(6);
-    await kv.set(`otp:${purpose}:${phone}`, JSON.stringify({ hash: hash(code), attempts: 0 }), OTP_TTL_SEC);
+    // a fresh code gets a fresh attempt budget that expires together with it
+    await kv.set(`otp:${purpose}:${phone}:attempts`, '0', OTP_TTL_SEC);
+    await kv.set(`otp:${purpose}:${phone}`, JSON.stringify({ hash: hash(code) }), OTP_TTL_SEC);
     await sendOtpMessage(phone, code);
     return { sent: true, expiresInSec: OTP_TTL_SEC };
   },
@@ -54,19 +57,19 @@ export const authService = {
   // family gets a phone-scoped token; donors get a donor token if already registered
   async verifyOtp(phone: string, purpose: OtpPurpose, code: string) {
     const key = `otp:${purpose}:${phone}`;
+    const attemptsKey = `${key}:attempts`;
     const raw = await kv.get(key);
     if (!raw) throw badRequest('Kode OTP kedaluwarsa. Minta kode baru.', 'OTP_EXPIRED');
-    const entry = JSON.parse(raw) as { hash: string; attempts: number };
-    if (entry.attempts >= MAX_ATTEMPTS) {
+    // counted atomically before comparing, so parallel guesses cannot all squeeze under the limit
+    if ((await kv.incr(attemptsKey, OTP_TTL_SEC)) > MAX_ATTEMPTS) {
       await kv.del(key);
       throw tooMany('Terlalu banyak percobaan. Minta kode baru.');
     }
+    const entry = JSON.parse(raw) as { hash: string };
     const match = crypto.timingSafeEqual(Buffer.from(entry.hash), Buffer.from(hash(code)));
-    if (!match) {
-      await kv.set(key, JSON.stringify({ ...entry, attempts: entry.attempts + 1 }), OTP_TTL_SEC);
-      throw badRequest('Kode OTP salah', 'OTP_INVALID');
-    }
+    if (!match) throw badRequest('Kode OTP salah', 'OTP_INVALID');
     await kv.del(key);
+    await kv.del(attemptsKey);
 
     if (purpose === 'DONOR') {
       const donor = await prisma.donor.findUnique({ where: { phone } });

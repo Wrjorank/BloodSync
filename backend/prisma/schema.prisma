@@ -68,7 +68,8 @@ enum MovementKind {
 
 model Faskes {
   id        String   @id @default(uuid())
-  name      String
+  // unique so imports and account mapping by name are unambiguous (case-insensitive under the default collation)
+  name      String   @unique
   type      FaskesType
   area      String
   address   String?

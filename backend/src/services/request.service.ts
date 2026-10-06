@@ -2,7 +2,7 @@ import { Component, Urgency } from '@prisma/client';
 import prisma from '../config/prisma';
 import { COMPONENT_LABEL, DISPATCH, compatibleDonorTypes } from '../constants/blood';
 import { distanceKm, randomCode } from '../utils/helpers';
-import { badRequest, conflict, forbidden, notFound } from '../utils/AppError';
+import { AppError, badRequest, conflict, forbidden, notFound } from '../utils/AppError';
 import {
   ACTIVE_REQUEST, addEvent, closeRequestTx, computeProgress, lockRequest, progressOf, runInTx, setStatus, settle, takeFromShelf, ticketCounts,
 } from './dispatch.service';
@@ -42,6 +42,21 @@ async function uniqueCode(prefix: string, field: 'code' | 'publicToken', length:
   throw new Error('Gagal membuat kode unik');
 }
 
+// named locks belong to the session, not the transaction: the holder connection is pinned by an outer
+// transaction so the lock outlives the inner commit; a dropped connection releases it automatically
+async function withPhoneLock<T>(phone: string, fn: () => Promise<T>): Promise<T> {
+  const key = `bloodsync:request:${phone}`;
+  return prisma.$transaction(async lock => {
+    const [row] = await lock.$queryRaw<{ ok: unknown }[]>`SELECT GET_LOCK(${key}, 5) AS ok`;
+    if (Number(row?.ok) !== 1) throw new AppError(503, 'Pengajuan lain dari nomor ini sedang diproses. Coba lagi sebentar.', 'BUSY');
+    try {
+      return await fn();
+    } finally {
+      await lock.$queryRaw`SELECT RELEASE_LOCK(${key})`;
+    }
+  }, { timeout: 25000, maxWait: 5000 });
+}
+
 // staff-side guard: request must belong to the staff's faskes and be in one of the allowed states
 function assertOwned(req: { faskesId: string; status: string }, faskesId: string, allowed: string[]) {
   if (req.faskesId !== faskesId) throw forbidden('Permintaan ini bukan untuk faskes Anda');
@@ -54,12 +69,14 @@ export const requestService = {
   async create(phone: string, input: CreateRequestInput, letter: Express.Multer.File) {
     const faskes = await prisma.faskes.findUnique({ where: { id: input.faskesId } });
     if (!faskes || !faskes.isActive || faskes.type !== 'RS') throw badRequest('Rumah sakit tidak valid');
-    const active = await prisma.bloodRequest.count({ where: { phone, status: { in: ACTIVE_REQUEST } } });
-    if (active >= 3) throw conflict('Maksimal 3 pengajuan aktif per nomor WhatsApp', 'TOO_MANY_ACTIVE');
 
     const code = await uniqueCode('REQ-', 'code', 6);
     const publicToken = await uniqueCode('', 'publicToken', 16);
-    return runInTx(async (tx, outbox) => {
+    // a per-phone mysql named lock, held on its own connection until the insert below has committed,
+    // so parallel submissions cannot all pass the active-request cap
+    return withPhoneLock(phone, () => runInTx(async (tx, outbox) => {
+      const active = await tx.bloodRequest.count({ where: { phone, status: { in: ACTIVE_REQUEST } } });
+      if (active >= 3) throw conflict('Maksimal 3 pengajuan aktif per nomor WhatsApp', 'TOO_MANY_ACTIVE');
       const req = await tx.bloodRequest.create({
         data: {
           ...input, code, publicToken, phone,
@@ -71,7 +88,7 @@ export const requestService = {
       outbox.faskes.add(req.faskesId);
       outbox.requests.add(req.id);
       return { id: req.id, code: req.code, status: req.status };
-    });
+    }));
   },
 
   async listMine(phone: string) {

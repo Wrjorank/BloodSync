@@ -54,7 +54,17 @@ export const faskesController = {
     res.setHeader('Cache-Control', 'private, no-store');
     // a pdf opened from this response must not be able to run scripts against the app origin
     res.setHeader('Content-Security-Policy', "default-src 'none'; img-src 'self'; style-src 'unsafe-inline'; sandbox");
-    fs.createReadStream(file).pipe(res);
+    // the file can vanish or be unreadable between the check and the read; never let that crash the process
+    fs.createReadStream(file)
+      .on('error', err => {
+        console.error('[letter] gagal membaca berkas surat', err.message);
+        if (!res.headersSent) {
+          res.removeHeader('Content-Disposition');
+          res.setHeader('Content-Type', 'application/json; charset=utf-8');
+          res.status(404).json({ success: false, error: { code: 'NOT_FOUND', message: 'Berkas surat tidak ditemukan' } });
+        } else res.destroy(err);
+      })
+      .pipe(res);
   },
 
   async stockOptions(req: Request, res: Response) {

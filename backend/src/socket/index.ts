@@ -2,8 +2,19 @@ import { Server, Socket } from 'socket.io';
 import prisma from '../config/prisma';
 import { env } from '../config/env';
 import { verifyToken } from '../utils/jwt';
-import { isCurrentDonorToken } from '../middlewares/auth';
+import { assertActiveStaff, isCurrentDonorToken } from '../middlewares/auth';
 import { rooms, setIo } from '../services/notification.service';
+
+// loopback, 10/8, 172.16/12, 192.168/16 and fc00::/7, ipv4-mapped included
+function isPrivateAddress(address: string) {
+  const a = address.toLowerCase().replace(/^::ffff:/, '');
+  const v4 = /^(\d+)\.(\d+)\.\d+\.\d+$/.exec(a);
+  if (v4) {
+    const [x, y] = [Number(v4[1]), Number(v4[2])];
+    return x === 127 || x === 10 || (x === 172 && y >= 16 && y <= 31) || (x === 192 && y === 168);
+  }
+  return a === '::1' || /^f[cd][0-9a-f]{2}:/.test(a);
+}
 
 // clients only receive "something changed" events and refetch over rest,
 // so a socket never carries more data than the matching rest endpoint would return.
@@ -25,7 +36,8 @@ export const setupSocket = (io: Server) => {
     // a tunnel (cloudflared, ngrok) also connects from loopback but adds forwarding headers, which are refused
     socket.on('dev:inbox', (ack?: (ok: boolean) => void) => {
       const h = socket.handshake;
-      const loopback = env.devInboxTrustNetwork || ['127.0.0.1', '::1', '::ffff:127.0.0.1'].includes(h.address);
+      // trust-network (docker bridge) still needs a private source: a header-stripping proxy in front would otherwise leak otps
+      const loopback = ['127.0.0.1', '::1', '::ffff:127.0.0.1'].includes(h.address) || (env.devInboxTrustNetwork && isPrivateAddress(h.address));
       const proxied = ['x-forwarded-for', 'x-real-ip', 'cf-connecting-ip', 'forwarded'].some(k => k in h.headers);
       const ok = env.devInbox && loopback && !proxied;
       if (ok) socket.join(rooms.devInbox);
@@ -33,7 +45,8 @@ export const setupSocket = (io: Server) => {
     });
 
     const auth = verifyToken(String(socket.handshake.auth?.token || ''));
-    if (auth?.kind === 'staff' && auth.faskesId) socket.join(rooms.faskes(auth.faskesId));
+    // same db check as rest: a deactivated, edited or signed-out account must not keep listening
+    if (auth?.kind === 'staff' && auth.faskesId && (await assertActiveStaff(auth).then(() => true, () => false))) socket.join(rooms.faskes(auth.faskesId));
     if (auth?.kind === 'phone' && auth.purpose === 'FAMILY') socket.join(rooms.family(auth.sub));
     if (auth?.kind === 'donor' && (await isCurrentDonorToken(auth).catch(() => false))) socket.join(rooms.donor(auth.sub));
   });

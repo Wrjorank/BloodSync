@@ -6,11 +6,12 @@ import { AdminDataset, ExportFile, ExportFilter, StaffDataset, exportService } f
 // exports carry patient and donor data, so every download is audited like opening a doctor's letter
 async function send(req: Request, res: Response, actor: string, dataset: string, file: ExportFile) {
   const { from, to, actor: actorFilter } = req.query as ExportFilter;
-  await prisma.auditLog.create({ data: { actor, action: `export.${dataset}`, meta: { rows: file.rows, from, to, actor: actorFilter } } });
+  await prisma.auditLog.create({ data: { actor, action: `export.${dataset}`, meta: { rows: file.rows, truncated: file.truncated, from, to, actor: actorFilter } } });
   res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
   res.setHeader('Content-Disposition', `attachment; filename="${file.filename}"`);
   res.setHeader('Cache-Control', 'private, no-store');
   res.setHeader('X-Export-Rows', String(file.rows));
+  if (file.truncated) res.setHeader('X-Export-Truncated', '1');
   res.send(file.buffer);
 }
 

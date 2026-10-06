@@ -24,7 +24,8 @@ router.post('/auth/otp/verify', rateLimit('otp-verify', 20, 600), validate(s.otp
 router.get('/auth/me', auth.me);
 
 // ---------- webhooks (shared secret in the url) ----------
-router.post('/webhooks/whatsapp', express.urlencoded({ extended: false }), rateLimit('wa-webhook', 120, 60), webhook.whatsapp);
+// fonnte delivers every donor reply from one ip, so the cap must stay above a full dispatch wave
+router.post('/webhooks/whatsapp', express.urlencoded({ extended: false }), rateLimit('wa-webhook', 600, 60), webhook.whatsapp);
 
 // ---------- public (no auth) ----------
 router.get('/public/meta', pub.meta);

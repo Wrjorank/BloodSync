@@ -15,6 +15,13 @@ function secret(key: string, devFallback: string): string {
 
 const jwtSecret = secret('JWT_SECRET', 'dev-only-secret-change-me');
 if (isProduction && jwtSecret.length < 32) throw new Error('JWT_SECRET minimal 32 karakter di production');
+// an unset NODE_ENV silently means development; say so loudly, the fallback secret is public in this repo
+if (!process.env.JWT_SECRET) {
+  console.warn(
+    `\n[env] !!! PERINGATAN: JWT_SECRET kosong, memakai secret bawaan development (NODE_ENV=${process.env.NODE_ENV || 'tidak diisi'}).` +
+    '\n[env] !!! Siapa pun bisa memalsukan token login. Isi JWT_SECRET dan NODE_ENV=production sebelum aplikasi bisa diakses publik.\n',
+  );
+}
 
 const corsOrigins = secret('CORS_ORIGIN', '*').split(',').map(s => s.trim());
 if (isProduction && corsOrigins.includes('*')) throw new Error('CORS_ORIGIN harus berisi domain frontend di production, bukan *');

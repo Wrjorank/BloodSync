@@ -144,7 +144,12 @@ export const auditQuerySchema = z.object({
   }),
 });
 
-const day = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Format tanggal YYYY-MM-DD').refine(d => !Number.isNaN(Date.parse(d)), 'Tanggal tidak valid');
+// round trip rejects dates the calendar does not have (2026-02-31 would otherwise roll into march)
+const realDate = (d: string) => {
+  const t = new Date(`${d}T00:00:00.000Z`);
+  return !Number.isNaN(t.getTime()) && t.toISOString().slice(0, 10) === d;
+};
+const day = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Format tanggal YYYY-MM-DD').refine(realDate, 'Tanggal tidak valid');
 const exportQuery = z.object({ from: day.optional(), to: day.optional(), actor: z.string().trim().max(80).optional() })
   .refine(q => !q.from || !q.to || q.from <= q.to, 'Tanggal awal harus sebelum tanggal akhir');
 

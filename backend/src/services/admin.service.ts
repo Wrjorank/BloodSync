@@ -1,10 +1,25 @@
 import bcrypt from 'bcryptjs';
-import { Component, FaskesType, UserRole } from '@prisma/client';
+import { Component, FaskesType, Prisma, UserRole } from '@prisma/client';
 import prisma from '../config/prisma';
 import { BLOOD_TYPES, DISPATCH } from '../constants/blood';
 import { badRequest, conflict, notFound } from '../utils/AppError';
 import { ACTIVE_REQUEST, LIVE_DONOR, closeRequestTx, lockRequest, runInTx } from './dispatch.service';
 import { audit } from './audit.service';
+
+type Tx = Prisma.TransactionClient;
+
+// locks every active super admin row first, so two admins demoting / removing each other at once cannot both pass.
+// no-op when the target is not an active super admin
+async function keepAnotherSuperAdmin(tx: Tx, id: string) {
+  const admins = await tx.$queryRaw<{ id: string }[]>`SELECT id FROM users WHERE role = 'SUPER_ADMIN' AND isActive = true FOR UPDATE`;
+  if (admins.some(a => a.id === id) && admins.length < 2) throw conflict('Harus tersisa minimal satu super admin aktif lain', 'LAST_SUPER_ADMIN');
+}
+
+async function assertFaskesNameFree(tx: Tx, name: string, exceptId?: string) {
+  // the default collation compares case- and trailing-space-insensitively, same as the unique index
+  const taken = await tx.faskes.findFirst({ where: { name, ...(exceptId ? { NOT: { id: exceptId } } : {}) }, select: { id: true } });
+  if (taken) throw conflict('Nama faskes sudah dipakai', 'DUPLICATE');
+}
 
 export const adminService = {
   async listFaskes() {
@@ -13,6 +28,7 @@ export const adminService = {
 
   async createFaskes(adminId: string, input: { name: string; type: FaskesType; area: string; address?: string; lat: number; lng: number }) {
     return runInTx(async tx => {
+      await assertFaskesNameFree(tx, input.name);
       const f = await tx.faskes.create({ data: input });
       const components: Component[] = ['PRC', 'TC', 'WB'];
       await tx.stock.createMany({ data: components.flatMap(component => BLOOD_TYPES.map(bloodType => ({ faskesId: f.id, component, bloodType, quantity: 0 }))) });
@@ -25,6 +41,7 @@ export const adminService = {
     return runInTx(async (tx, outbox) => {
       const before = await tx.faskes.findUnique({ where: { id } });
       if (!before) throw notFound('Faskes tidak ditemukan');
+      await assertFaskesNameFree(tx, input.name, id);
       const f = await tx.faskes.update({ where: { id }, data: { ...input, address: input.address || null } });
       const changed = (['name', 'type', 'area', 'address', 'lat', 'lng'] as const).filter(k => before[k] !== f[k]);
       await audit(tx, `admin:${adminId}`, 'faskes.update', id, { changed });
@@ -35,21 +52,29 @@ export const adminService = {
 
   // a faskes with history is only deactivated: requests, donations and transfers are medical records
   async deleteFaskes(adminId: string, id: string) {
-    const f = await prisma.faskes.findUnique({
-      where: { id },
-      include: { _count: { select: { users: true, requests: true, donations: true, transfersIn: true, transfersOut: true } } },
-    });
-    if (!f) throw notFound('Faskes tidak ditemukan');
-    const c = f._count;
-    if (c.users) throw conflict(`Masih ada ${c.users} akun petugas di faskes ini. Hapus atau pindahkan akunnya dulu.`, 'HAS_USERS');
-    const history = c.requests + c.donations + c.transfersIn + c.transfersOut;
-    if (history) throw conflict('Faskes ini sudah punya riwayat permintaan, donasi, atau mutasi. Nonaktifkan saja agar riwayatnya tetap utuh.', 'HAS_HISTORY');
-    return runInTx(async tx => {
-      // stocks and stock movements cascade with the faskes row
-      await tx.faskes.delete({ where: { id } });
-      await audit(tx, `admin:${adminId}`, 'faskes.delete', id, { name: f.name, type: f.type });
-      return { deleted: true };
-    });
+    try {
+      return await runInTx(async tx => {
+        // the row lock holds back new users / requests pointing here (their fk check waits on it) until we are done
+        await tx.$queryRaw`SELECT id FROM faskes WHERE id = ${id} FOR UPDATE`;
+        const f = await tx.faskes.findUnique({
+          where: { id },
+          include: { _count: { select: { users: true, requests: true, donations: true, transfersIn: true, transfersOut: true } } },
+        });
+        if (!f) throw notFound('Faskes tidak ditemukan');
+        const c = f._count;
+        if (c.users) throw conflict(`Masih ada ${c.users} akun petugas di faskes ini. Hapus atau pindahkan akunnya dulu.`, 'HAS_USERS');
+        const history = c.requests + c.donations + c.transfersIn + c.transfersOut;
+        if (history) throw conflict('Faskes ini sudah punya riwayat permintaan, donasi, atau mutasi. Nonaktifkan saja agar riwayatnya tetap utuh.', 'HAS_HISTORY');
+        // stocks and stock movements cascade with the faskes row
+        await tx.faskes.delete({ where: { id } });
+        await audit(tx, `admin:${adminId}`, 'faskes.delete', id, { name: f.name, type: f.type });
+        return { deleted: true };
+      });
+    } catch (e) {
+      // some other table still references the faskes
+      if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2003') throw conflict('Faskes masih dipakai data lain, nonaktifkan saja', 'IN_USE');
+      throw e;
+    }
   },
 
   // deactivation also stops its live calls, otherwise the engine keeps inviting donors to a faskes whose staff cannot log in
@@ -113,8 +138,11 @@ export const adminService = {
     const faskesId = input.role === 'FASKES_STAFF' ? input.faskesId : null;
     if (input.role === 'FASKES_STAFF') {
       if (!faskesId) throw badRequest('Petugas faskes wajib terhubung ke faskes');
-      const f = await prisma.faskes.findUnique({ where: { id: faskesId }, select: { isActive: true } });
-      if (!f || !f.isActive) throw badRequest('Faskes tidak ditemukan atau tidak aktif');
+      // only a new assignment needs an active faskes; staff of a paused faskes can still be renamed or get a new password
+      if (before.role !== 'FASKES_STAFF' || before.faskesId !== faskesId) {
+        const f = await prisma.faskes.findUnique({ where: { id: faskesId }, select: { isActive: true } });
+        if (!f || !f.isActive) throw badRequest('Faskes tidak ditemukan atau tidak aktif');
+      }
     }
     const passwordHash = input.password ? await bcrypt.hash(input.password, 12) : undefined;
     const email = input.email.toLowerCase();
@@ -128,6 +156,7 @@ export const adminService = {
     // role, faskes and password are baked into sessions: changing any of them signs the owner out everywhere
     const revoke = changed.some(k => ['role', 'faskes', 'password'].includes(k));
     return runInTx(async tx => {
+      if (input.role !== 'SUPER_ADMIN') await keepAnotherSuperAdmin(tx, id);
       const user = await tx.user.update({
         where: { id },
         data: { name: input.name, email, role: input.role, faskesId, ...(passwordHash ? { passwordHash } : {}), ...(revoke ? { tokenVersion: { increment: 1 } } : {}) },
@@ -143,6 +172,7 @@ export const adminService = {
     const user = await prisma.user.findUnique({ where: { id }, select: { email: true, name: true, role: true } });
     if (!user) throw notFound('Akun tidak ditemukan');
     return runInTx(async tx => {
+      await keepAnotherSuperAdmin(tx, id);
       await tx.user.delete({ where: { id } });
       // the audit trail keeps who the deleted actor id belonged to
       await audit(tx, `admin:${adminId}`, 'user.delete', id, user);
@@ -153,7 +183,11 @@ export const adminService = {
   async setUserActive(adminId: string, id: string, isActive: boolean) {
     if (id === adminId && !isActive) throw badRequest('Tidak bisa menonaktifkan akun sendiri');
     return runInTx(async tx => {
-      const user = await tx.user.update({ where: { id }, data: { isActive }, select: { id: true, isActive: true } });
+      if (!isActive) await keepAnotherSuperAdmin(tx, id);
+      // deactivation also burns the token generation, so old sessions stay dead after a later reactivation
+      const user = await tx.user.update({
+        where: { id }, data: { isActive, ...(isActive ? {} : { tokenVersion: { increment: 1 } }) }, select: { id: true, isActive: true },
+      });
       await audit(tx, `admin:${adminId}`, isActive ? 'user.activate' : 'user.deactivate', id);
       return user;
     });
