@@ -61,6 +61,16 @@ Akun awal dibuat oleh seed, semuanya dengan kata sandi `password`:
 
 Notifikasi lokal hanya diterima browser di komputer yang sama. Koneksi lewat tunnel atau proxy ditolak, dan fitur ini selalu mati di production. Kode OTP tidak pernah dikembalikan oleh API.
 
+## Semua orang bisa dipanggil, tanpa daftar akun
+
+Dispatch Engine tidak hanya memanggil pendonor yang mendaftar di aplikasi. Setiap kali gelombang panggilan dimulai atau radius diperluas, engine juga membaca data penduduk di sekitar faskes (nama, tanggal lahir, golongan darah, alamat, nomor HP). Penduduk yang golongan darahnya cocok dan berusia 17–60 tahun otomatis dijadikan pendonor (`source = REGISTRY`), lalu menerima WA panggilan darurat yang sama.
+
+- Mereka bisa membalas *1*/*2* di WA, atau masuk ke `pendonor.html` cukup dengan OTP, tanpa form pendaftaran.
+- Pesan WA pertama menjelaskan alasan mereka dihubungi. Balasan *STOP* menonaktifkan nomor tersebut untuk seterusnya.
+- Sumber data diatur di `backend/src/services/population.service.ts`. Untuk lomba, `POPULATION_SOURCE=local` memakai tabel `residents` yang diisi seed dengan 400 penduduk dummy di Jakarta. Penduduk dummy hanya muncul di notifikasi WA lokal, tidak pernah dikirim ke HP asli.
+- Untuk demo WA ke HP asli, isi `DEMO_RESIDENT_PHONE` (plus `FONNTE_TOKEN`). Nomor itu masuk ke data penduduk di dekat RSUD Tarakan dan ikut dipanggil tanpa pernah mendaftar.
+- Integrasi nyata bisa ke lembaga mana pun yang memegang data penduduk (Dukcapil, BPJS, PMI, Satu Data, dll.). Set `POPULATION_SOURCE=external`, `POPULATION_API_URL`, dan `POPULATION_API_KEY`. Format API yang diharapkan tertulis di `population.service.ts`; kalau format lembaga berbeda, cukup ubah `mapResident`. Integrasi ini butuh perjanjian berbagi data dan dasar hukum pemrosesan sesuai UU PDP.
+
 ## Alur penggunaan (3 tab berdampingan)
 
 1. **Pendonor**: nomor HP baru → OTP → daftar A+ di Menteng.

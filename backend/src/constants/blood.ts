@@ -28,6 +28,9 @@ export const DISPATCH = {
   travelSpeedKmh: 20,
   reservationBufferMin: 30,
   lowStockThreshold: 2,
+  // donor age range (permenkes 91/2015); applies to registry donors, whose birth date is known
+  minAge: 17,
+  maxAge: 60,
 } as const;
 
 export const SCREENING = { hbMin: 12.5, hbMax: 17, sysMin: 90, sysMax: 160, diaMin: 60, diaMax: 100, weightMin: 45 } as const;

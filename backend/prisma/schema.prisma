@@ -66,6 +66,12 @@ enum MovementKind {
   TRANSFER
 }
 
+// APP = signed up in the app; REGISTRY = enlisted automatically from population data when a request needed them
+enum DonorSource {
+  APP
+  REGISTRY
+}
+
 model Faskes {
   id        String   @id @default(uuid())
   // unique so imports and account mapping by name are unambiguous (case-insensitive under the default collation)
@@ -151,6 +157,9 @@ model Donor {
   responseRate   Float     @default(0.5)
   isSimulated    Boolean   @default(false)
   isActive       Boolean   @default(true)
+  source         DonorSource @default(APP)
+  // known only for registry donors; dispatch skips anyone outside the donor age range
+  birthDate      DateTime? @db.Date
   // copied into every donor jwt; bumping it (logout) kills all tokens issued before
   tokenVersion   Int       @default(0)
   createdAt      DateTime  @default(now())
@@ -163,6 +172,28 @@ model Donor {
   @@index([bloodType, isActive])
   @@index([lat, lng])
   @@map("donors")
+}
+
+// local population registry (dummy data for now). a real deployment reads an institution's api (dukcapil, bpjs, ...) through
+// population.service.ts instead; nobody here has to sign up to be called as a donor
+model Resident {
+  id          String   @id @default(uuid())
+  nik         String   @unique @db.VarChar(16)
+  name        String
+  birthDate   DateTime @db.Date
+  bloodType   String   @db.VarChar(3)
+  address     String
+  area        String
+  lat         Float
+  lng         Float
+  phone       String   @unique @db.VarChar(20)
+  isSimulated Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([bloodType])
+  @@index([lat, lng])
+  @@map("residents")
 }
 
 model DonorBadge {

@@ -54,6 +54,13 @@ export const env = {
   // fonnte whatsapp gateway. production requires it
   fonnteToken,
   waWebhookSecret,
+  // where dispatch finds people who never signed up: 'local' = residents table (dummy),
+  // 'external' = api of an institution holding population data (dukcapil, bpjs, ...)
+  populationSource: (process.env.POPULATION_SOURCE || 'local') as 'local' | 'external',
+  populationApiUrl: (process.env.POPULATION_API_URL || '').replace(/\/$/, ''),
+  populationApiKey: process.env.POPULATION_API_KEY || '',
+  // 'false' turns the registry off: only donors who signed up in the app are called
+  enableRegistry: process.env.ENABLE_REGISTRY !== 'false',
   // local development without a gateway: whatsapp messages (otp included) are shown as on-screen
   // notifications in browsers on this machine instead. never on in production
   devInbox: !isProduction && !fonnteToken,

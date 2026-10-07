@@ -50,6 +50,9 @@ services:
       ENABLE_API_DOCS: "true"
       FONNTE_TOKEN: ${FONNTE_TOKEN:-}
       WA_WEBHOOK_SECRET: ${WA_WEBHOOK_SECRET:-}
+      DEMO_RESIDENT_PHONE: ${DEMO_RESIDENT_PHONE:-}
+      DEMO_RESIDENT_NAME: ${DEMO_RESIDENT_NAME:-}
+      DEMO_RESIDENT_BLOOD: ${DEMO_RESIDENT_BLOOD:-}
       # notifikasi OTP lokal di browser host; aman karena port hanya dibuka di 127.0.0.1
       DEV_INBOX_TRUST_NETWORK: "true"
     ports:

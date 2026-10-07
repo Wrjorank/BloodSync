@@ -4,18 +4,25 @@ import { AppError } from '../utils/AppError';
 import { maskPhone, normalizePhone } from '../utils/helpers';
 import { sendWhatsapp } from './notification.service';
 import { ticketService } from './ticket.service';
+import { donorService } from './donor.service';
 
 const HELP = 'Balas *1* untuk menyanggupi atau *2* untuk menolak panggilan darurat Anda.';
 
-// inbound replies from the fonnte webhook: "1" accepts, "2" declines the donor's single open invite
+// inbound replies from the fonnte webhook: "1" accepts, "2" declines the donor's single open invite, "STOP" opts out
 export const whatsappService = {
   async handleReply(sender: string, message: string) {
     const phone = normalizePhone(sender);
     const answer = message.trim();
-    if (answer !== '1' && answer !== '2') return;
+    const stop = answer.toUpperCase() === 'STOP';
+    if (answer !== '1' && answer !== '2' && !stop) return;
 
-    const donor = await prisma.donor.findUnique({ where: { phone }, select: { id: true } });
+    const donor = await prisma.donor.findUnique({ where: { phone }, select: { id: true, isActive: true } });
     if (!donor) return;
+    // opt-out; the inactive donor row keeps registry enlistment from picking the number up again
+    if (stop) {
+      if (donor.isActive) await donorService.deactivate(donor.id);
+      return reply(phone, `Baik, Anda tidak akan dihubungi lagi untuk panggilan donor. Untuk aktif kembali, masuk di ${env.publicAppUrl}/pendonor.html`);
+    }
     const open = await prisma.donorTicket.findMany({
       where: { donorId: donor.id, status: 'INVITED', request: { status: 'BROADCASTING' } },
       orderBy: { invitedAt: 'desc' },

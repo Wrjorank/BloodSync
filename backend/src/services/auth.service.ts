@@ -8,6 +8,7 @@ import { isCurrentDonorToken } from '../middlewares/auth';
 import { env } from '../config/env';
 import { badRequest, forbidden, tooMany, unauthorized } from '../utils/AppError';
 import { sendOtpMessage } from './notification.service';
+import { enlistByPhone } from './population.service';
 
 const OTP_TTL_SEC = 300;
 const MAX_ATTEMPTS = 5;
@@ -72,7 +73,8 @@ export const authService = {
     await kv.del(attemptsKey);
 
     if (purpose === 'DONOR') {
-      const donor = await prisma.donor.findUnique({ where: { phone } });
+      // someone in the population registry skips the sign-up form: their profile comes from the registry
+      const donor = (await prisma.donor.findUnique({ where: { phone } })) || (await enlistByPhone(phone));
       // a dummy carries a made-up number; whoever really owns it must not inherit the fake profile
       if (donor?.isSimulated && env.isProduction) throw forbidden('Nomor ini tidak dapat digunakan. Hubungi admin BloodSync.');
       if (donor) return { token: signToken({ kind: 'donor', sub: donor.id, phone, ver: donor.tokenVersion }), registered: true };

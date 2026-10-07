@@ -45,6 +45,50 @@ const DONORS: [string, string, string, number | null, number][] = [
   ['Intan Permata', 'A+', 'Cengkareng', 95, 0.6],
 ];
 
+// dummy population registry: stands in for bpjs/dukcapil data, people who never opened the app
+const RESIDENT_COUNT = 400;
+const FIRST = ['Agus', 'Budi', 'Citra', 'Dian', 'Eka', 'Fitri', 'Gilang', 'Hana', 'Irfan', 'Joko', 'Kartika', 'Lina', 'Rudi', 'Nur', 'Oki', 'Prasetyo', 'Ratna', 'Sri', 'Taufik', 'Wulan', 'Yusuf', 'Zahra', 'Arif', 'Bella', 'Dimas', 'Indah', 'Reza', 'Tika'];
+const LAST = ['Santoso', 'Wibowo', 'Kusuma', 'Siregar', 'Nasution', 'Hasibuan', 'Purnomo', 'Setiawan', 'Halim', 'Gunawan', 'Saputri', 'Lubis', 'Hakim', 'Susanto', 'Rahman', 'Utami'];
+// rough indonesian distribution: O 37%, B 29%, A 26%, AB 8%, rhesus negative under 1%
+const TYPE_WEIGHTS: [string, number][] = [['O+', 366], ['B+', 287], ['A+', 257], ['AB+', 79], ['O-', 4], ['B-', 3], ['A-', 3], ['AB-', 1]];
+
+// deterministic, so re-running the seed yields the same people
+function rng(seed: number) {
+  return () => {
+    seed = (seed * 1103515245 + 12345) % 2147483648;
+    return seed / 2147483648;
+  };
+}
+
+function pickType(r: number) {
+  const total = TYPE_WEIGHTS.reduce((s, [, w]) => s + w, 0);
+  let n = r * total;
+  for (const [type, w] of TYPE_WEIGHTS) if ((n -= w) < 0) return type;
+  return 'O+';
+}
+
+function residents() {
+  const rand = rng(20261007);
+  const areas = Object.entries(AREAS);
+  return Array.from({ length: RESIDENT_COUNT }, (_, i) => {
+    const [area, [lat, lng]] = areas[i % areas.length];
+    // ages 15-70, so some fall outside the 17-60 donor range on purpose
+    const birthDate = new Date(Date.UTC(new Date().getFullYear() - 15 - Math.floor(rand() * 56), Math.floor(rand() * 12), 1 + Math.floor(rand() * 28)));
+    return {
+      nik: '3171' + String(i).padStart(6, '0') + String(birthDate.getUTCFullYear()).slice(2) + '0001',
+      name: `${FIRST[Math.floor(rand() * FIRST.length)]} ${LAST[Math.floor(rand() * LAST.length)]}`,
+      birthDate,
+      bloodType: pickType(rand()),
+      address: `Jl. ${LAST[i % LAST.length]} No. ${1 + (i % 90)}, ${area}`,
+      area,
+      lat: lat + (rand() - 0.5) * 0.03,
+      lng: lng + (rand() - 0.5) * 0.03,
+      phone: '0899' + String(10000000 + i * 104729).slice(-8),
+      isSimulated: true,
+    };
+  });
+}
+
 // every seeded account (super admin + faskes staff) starts with this password.
 // it is a known default: replace these accounts before the app is reachable from the internet
 const DEFAULT_PASSWORD = 'password';
@@ -101,6 +145,23 @@ async function main() {
     }
   }
 
+  if (!isProduction) {
+    await prisma.resident.createMany({ data: residents(), skipDuplicates: true });
+    // a real phone for live demos: this person gets a real whatsapp call without ever signing up
+    const demoPhone = process.env.DEMO_RESIDENT_PHONE?.replace(/\D/g, '').replace(/^62/, '0');
+    if (demoPhone) {
+      await prisma.resident.upsert({
+        where: { phone: demoPhone },
+        create: {
+          nik: '3171019999990001', name: process.env.DEMO_RESIDENT_NAME || 'Peserta Demo', phone: demoPhone,
+          birthDate: new Date(Date.UTC(2000, 0, 1)), bloodType: process.env.DEMO_RESIDENT_BLOOD || 'O+',
+          address: 'Jl. Demo No. 1, Gambir', area: 'Gambir', lat: -6.1735, lng: 106.8135, isSimulated: false,
+        },
+        update: {},
+      });
+    }
+  }
+
   console.log('Seed selesai.');
   if (firstBoot) {
     console.log(`  Super admin : ${ADMIN_EMAIL} / ${DEFAULT_PASSWORD}`);
@@ -109,6 +170,7 @@ async function main() {
     console.log('  Akun bawaan dilewati: tabel users sudah berisi akun (akun hanya dibuat saat database masih kosong).');
   }
   console.log(isProduction ? '  Pendonor dummy dilewati (production).' : `  Pendonor dummy: ${DONORS.length} (hanya development)`);
+  if (!isProduction) console.log(`  Data penduduk dummy: ${await prisma.resident.count()} orang (dipanggil tanpa perlu daftar)`);
   if (isProduction && firstBoot) {
     console.warn('\n  !!! PERINGATAN: akun seed memakai kata sandi bawaan "password".');
     console.warn('  !!! Siapa pun bisa masuk sebagai super admin. Ganti akun ini sebelum aplikasi bisa diakses publik.\n');
