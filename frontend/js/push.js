@@ -38,7 +38,9 @@ const pushNotify = (() => {
         for (const src of SDK) await loadScript(src);
         const web = { apiKey: cfg.apiKey, projectId: cfg.projectId, messagingSenderId: cfg.messagingSenderId, appId: cfg.appId };
         if (!firebase.apps.length) firebase.initializeApp(web);
-        const registration = await navigator.serviceWorker.register('/firebase-messaging-sw.js?' + new URLSearchParams(web), { scope: '/' });
+        // the site-wide worker from pwa.js already carries the firebase config
+        const registration = await pwa.register();
+        if (!registration) throw new Error('Browser ini tidak mendukung notifikasi push.');
         return { fcm: firebase.messaging(), registration, vapidKey: cfg.vapidKey };
     }
 

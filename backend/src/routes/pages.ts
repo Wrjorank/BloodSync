@@ -83,7 +83,7 @@ router.use(express.static(FRONTEND_ROOT, {
   setHeaders(res, file) {
     const url = (res.req as express.Request).originalUrl;
     // the service worker must always be fresh, or a broken one could stay installed for days
-    if (file.endsWith('firebase-messaging-sw.js')) res.setHeader('Cache-Control', 'no-cache');
+    if (file.endsWith(`${path.sep}sw.js`)) res.setHeader('Cache-Control', 'no-cache');
     else if (/[?&]v=/.test(url)) res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
     // unversioned (lazy-loaded sdk, images referenced from css): cache briefly, then revalidate by etag
     else res.setHeader('Cache-Control', 'public, max-age=3600');

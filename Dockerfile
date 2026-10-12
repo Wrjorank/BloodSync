@@ -21,8 +21,8 @@ RUN npx tsc
 
 # routes/pages.ts menyajikan ../../../frontend relatif terhadap dist/routes/, yaitu /app/frontend
 COPY frontend/*.html /app/frontend/
-# push service worker must be served from the site root
-COPY frontend/firebase-messaging-sw.js /app/frontend/
+# the service worker (pwa + push) must be served from the site root
+COPY frontend/sw.js /app/frontend/
 COPY frontend/css /app/frontend/css
 COPY frontend/js /app/frontend/js
 COPY frontend/vendor /app/frontend/vendor
