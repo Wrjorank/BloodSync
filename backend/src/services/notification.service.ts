@@ -81,7 +81,7 @@ function toDevInbox(phone: string, text: string, kind: 'otp' | 'pesan') {
 const channels = {
   async push(donorId: string, title: string, body: string, tag?: string) {
     if (!pushService.enabled()) return console.log(`[push] (firebase belum diatur) donor=${donorId} ${title}`);
-    await pushService.toDonor(donorId, { title, body, path: '/donor', tag });
+    await pushService.toDonor(donorId, { title, body, path: '/donor', tag, route: 'donor', urgent: true });
   },
   async whatsapp(phone: string, text: string) {
     // message bodies carry patient names; production logs keep only the masked recipient
@@ -153,6 +153,13 @@ async function notifyFamilies(notices: Outbox['familyNotices']) {
       ].join('\n');
     await channels.whatsapp(r.phone, text)
       .catch(err => console.error(`[whatsapp] gagal kirim ke keluarga ${maskPhone(r.phone)}`, err));
+    // the same milestone as a push to every device where the family verified this number (web or android app)
+    const approved = notices.get(r.id) === 'APPROVED';
+    await pushService.toFamily(r.phone, {
+      title: approved ? `Pengajuan ${r.code} diverifikasi` : `Kebutuhan ${r.code} terpenuhi`,
+      body: approved ? `${r.faskes.name} memverifikasi ${need}. Petugas sedang mencari stok dan pendonor.` : `${need} untuk ${r.patientName} sudah tersedia.`,
+      path: '/patient', route: 'request', requestId: r.id, tag: `request-${r.id}`,
+    });
   }
 }
 
@@ -181,7 +188,7 @@ export async function flush(outbox: Outbox) {
   await step('event faskes', () => { for (const id of outbox.faskes) io?.to(rooms.faskes(id)).emit('faskes:updated', { id }); });
   await step('event pendonor', () => { for (const id of outbox.donors) io?.to(rooms.donor(id)).emit('donor:updated', { id }); });
   await step('push petugas', async () => {
-    for (const n of outbox.staffPush) await pushService.toFaskes(n.faskesId, { title: n.title, body: n.body, path: `/facility/${n.view}` });
+    for (const n of outbox.staffPush) await pushService.toFaskes(n.faskesId, { title: n.title, body: n.body, path: `/facility/${n.view}`, route: 'facility' });
   });
 
   await step('undangan', async () => {

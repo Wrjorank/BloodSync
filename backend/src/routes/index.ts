@@ -40,6 +40,8 @@ const fam = Router();
 fam.use(requirePhone('FAMILY'));
 fam.post('/', rateLimit('create-request', 5, 3600), letterUpload, validate(s.createRequestSchema), family.create);
 fam.get('/', family.listMine);
+fam.post('/push-tokens', rateLimit('push-token', 30, 600), validate(s.pushTokenSchema), family.addPushToken);
+fam.delete('/push-tokens', validate(s.pushTokenSchema), family.removePushToken);
 fam.get('/:id', validate(s.idParamSchema), family.detail);
 fam.post('/:id/cancel', validate(s.idParamSchema), family.cancel);
 router.use('/requests', fam);

@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import { verifiedPhone } from '../middlewares/auth';
 import { requestService } from '../services/request.service';
+import { pushService } from '../services/push.service';
 import { ApiResponse } from '../utils/ApiResponse';
 import { badRequest } from '../utils/AppError';
 
@@ -21,5 +22,16 @@ export const familyController = {
 
   async cancel(req: Request, res: Response) {
     return ApiResponse.success(res, await requestService.cancelByFamily(verifiedPhone(req), req.params.id), 'Pengajuan dibatalkan');
+  },
+
+  // the family's device gets their request milestones as push, tied to the verified number
+  async addPushToken(req: Request, res: Response) {
+    await pushService.register(req.body.token, { phone: verifiedPhone(req) }, req.get('user-agent'));
+    return ApiResponse.success(res, null, 'Notifikasi diaktifkan');
+  },
+
+  async removePushToken(req: Request, res: Response) {
+    await pushService.unregister(req.body.token, { phone: verifiedPhone(req) });
+    return ApiResponse.success(res, null, 'Notifikasi dimatikan');
   },
 };
