@@ -18,6 +18,24 @@ export const faskesController = {
     return ApiResponse.success(res, await faskesService.me(staffFaskesId(req)));
   },
 
+  // everything the dashboard renders in one round trip: one auth check and one request per realtime event,
+  // instead of eight plus one per open request
+  async dashboard(req: Request, res: Response) {
+    const faskesId = staffFaskesId(req);
+    const [faskes, stock, active, history, arrivals, movements, pool, transfers, notifications] = await Promise.all([
+      faskesService.me(faskesId), faskesService.stockMatrix(faskesId),
+      requestService.listForFaskes(faskesId, 'active'), requestService.listForFaskes(faskesId, 'history'),
+      faskesService.arrivals(faskesId), faskesService.movements(faskesId, 8), faskesService.donorPool(faskesId),
+      requestService.listTransfers(faskesId),
+      // the bell popup: latest few plus the unread count for this person
+      staffNotifications.list(faskesId, userId(req), 1, 6, false),
+    ]);
+    // stock options only matter for requests that can still take units
+    const open = active.filter(r => r.status === 'APPROVED' || r.status === 'BROADCASTING');
+    const options = Object.fromEntries(await Promise.all(open.map(async r => [r.id, await requestService.stockOptions(faskesId, r.id)] as const)));
+    return ApiResponse.success(res, { faskes, stock, active, history, arrivals, movements, pool, transfers, options, notifications });
+  },
+
   async stock(req: Request, res: Response) {
     return ApiResponse.success(res, await faskesService.stockMatrix(staffFaskesId(req)));
   },

@@ -1,6 +1,7 @@
 import 'express-async-errors';
 import express from 'express';
 import cors from 'cors';
+import compression from 'compression';
 import { createServer } from 'http';
 import { Server } from 'socket.io';
 import { env } from './config/env';
@@ -13,6 +14,7 @@ import { requestContext } from './middlewares/requestContext';
 import { errorHandler, notFoundHandler } from './middlewares/errorHandler';
 import { setupSocket } from './socket';
 import { startEngine, stopEngine } from './jobs/engine';
+import { startCleanup, stopCleanup } from './jobs/cleanup';
 import swaggerUi from 'swagger-ui-express';
 import { openApiSpec } from './docs/openapi';
 
@@ -25,6 +27,8 @@ app.disable('x-powered-by');
 app.set('trust proxy', env.trustProxy);
 app.use(cors({ origin: corsOrigin, exposedHeaders: ['Content-Disposition', 'X-Export-Rows', 'X-Export-Truncated', 'X-Import-Rows'] }));
 app.use(requestContext);
+// gzip/brotli for html, js, css and json; already-compressed bodies (xlsx, images) are skipped by content type
+app.use(compression({ threshold: 1024 }));
 app.use(express.json({ limit: '100kb' }));
 app.use((_req, res, next) => {
   res.setHeader('X-Content-Type-Options', 'nosniff');
@@ -78,6 +82,7 @@ async function start() {
   await prisma.$connect();
   httpServer.listen(env.port, () => console.log(`[server] BloodSync API berjalan di http://localhost:${env.port}`));
   startEngine();
+  startCleanup();
 }
 
 start().catch(err => {
@@ -88,6 +93,7 @@ start().catch(err => {
 async function shutdown() {
   console.log('\n[server] mematikan server...');
   stopEngine();
+  stopCleanup();
   io.close();
   httpServer.close(async () => {
     await prisma.$disconnect();
