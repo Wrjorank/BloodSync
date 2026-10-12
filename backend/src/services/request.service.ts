@@ -7,6 +7,7 @@ import {
   ACTIVE_REQUEST, addEvent, closeRequestTx, computeProgress, lockRequest, progressOf, runInTx, setStatus, settle, takeFromShelf, ticketCounts,
 } from './dispatch.service';
 import { audit } from './audit.service';
+import { notifyStaff } from './notification.service';
 import { forFamily, forPublic, forStaff } from './presenters';
 
 const detailInclude = {
@@ -85,7 +86,12 @@ export const requestService = {
       });
       await addEvent(tx, req.id, 'Pengajuan dibuat oleh keluarga pasien');
       await audit(tx, `pemohon:${phone}`, 'request.create', req.code);
-      outbox.faskes.add(req.faskesId);
+      const kritis = req.urgency === 'KRITIS';
+      await notifyStaff(tx, outbox, req.faskesId, {
+        kind: kritis ? 'REQUEST_URGENT' : 'REQUEST_NEW', view: 'permintaan',
+        title: `${kritis ? 'Darurat kritis' : 'Pengajuan darah baru'} ${req.code}`,
+        body: `${req.patientName} butuh ${req.bagsNeeded} kantong ${COMPONENT_LABEL[req.component]} ${req.bloodType}. Periksa surat pengantar.`,
+      });
       outbox.requests.add(req.id);
       return { id: req.id, code: req.code, status: req.status };
     }));
@@ -113,6 +119,10 @@ export const requestService = {
       if (!ACTIVE_REQUEST.includes(req.status)) throw conflict('Permintaan sudah tidak aktif', 'INVALID_STATE');
       await closeRequestTx(tx, req, 'Dibatalkan oleh keluarga pasien', 'Permintaan dibatalkan keluarga. Anda tidak perlu datang.', outbox);
       await audit(tx, `pemohon:${phone}`, 'request.cancel', req.code);
+      await notifyStaff(tx, outbox, req.faskesId, {
+        kind: 'REQUEST_CANCELLED', view: 'permintaan',
+        title: `Pengajuan ${req.code} dibatalkan`, body: `Keluarga ${req.patientName} membatalkan pengajuan.`,
+      });
       return { id, status: req.status };
     });
   },
@@ -232,6 +242,12 @@ export const requestService = {
       const transfer = await tx.stockTransfer.create({ data: { requestId: id, fromFaskesId, toFaskesId: faskesId, quantity, requestedBy: userId } });
       await addEvent(tx, id, `Permintaan mutasi ${quantity} kantong dikirim ke ${source.name}`);
       await audit(tx, `staff:${userId}`, 'transfer.request', req.code, { from: fromFaskesId, quantity });
+      const target = await tx.faskes.findUniqueOrThrow({ where: { id: faskesId }, select: { name: true } });
+      await notifyStaff(tx, outbox, fromFaskesId, {
+        kind: 'TRANSFER_IN', view: 'permintaan',
+        title: `Permintaan mutasi dari ${target.name}`,
+        body: `${quantity} kantong ${COMPONENT_LABEL[req.component]} ${req.bloodType} untuk ${req.code}. Setujui atau tolak di menu Permintaan.`,
+      });
       outbox.faskes.add(fromFaskesId);
       outbox.faskes.add(faskesId);
       outbox.requests.add(id);
@@ -274,13 +290,22 @@ export const requestService = {
         await tx.stockTransfer.update({ where: { id: transferId }, data: { status: 'REJECTED', note: 'Ditolak faskes sumber', ...decided } });
         await addEvent(tx, req.id, `Mutasi dari ${t.fromFaskes.name} ditolak`);
         await audit(tx, `staff:${userId}`, 'transfer.reject', req.code);
+        await notifyStaff(tx, outbox, t.toFaskesId, {
+          kind: 'TRANSFER_REJECTED', view: 'permintaan',
+          title: `Mutasi ${req.code} ditolak`, body: `${t.fromFaskes.name} menolak permintaan ${t.quantity} kantong.`,
+        });
         return { status: 'REJECTED', moved: 0 };
       }
       const { uncovered } = await progressOf(tx, req);
       const need = ['APPROVED', 'BROADCASTING'].includes(req.status) ? Math.min(t.quantity, uncovered) : 0;
       const { taken, byType } = await takeFromShelf(tx, req, faskesId, need, `Mutasi ke ${t.toFaskes.name} (${req.code})`, outbox);
       if (!taken) {
-        await tx.stockTransfer.update({ where: { id: transferId }, data: { status: 'CANCELLED', note: need ? 'Stok sumber sudah habis' : 'Kebutuhan sudah tertutup', ...decided } });
+        const note = need ? 'Stok sumber sudah habis' : 'Kebutuhan sudah tertutup';
+        await tx.stockTransfer.update({ where: { id: transferId }, data: { status: 'CANCELLED', note, ...decided } });
+        await notifyStaff(tx, outbox, t.toFaskesId, {
+          kind: 'TRANSFER_REJECTED', view: 'permintaan',
+          title: `Mutasi ${req.code} dibatalkan`, body: `${t.fromFaskes.name}: ${note.toLowerCase()}.`,
+        });
         return { status: 'CANCELLED', moved: 0 };
       }
       // one movement per blood type actually moved, so an O- unit is never logged as A+
@@ -294,6 +319,10 @@ export const requestService = {
       await tx.bloodRequest.update({ where: { id: req.id }, data: { allocatedFromStock: { increment: taken } } });
       await addEvent(tx, req.id, `${taken} kantong dimutasi dari ${t.fromFaskes.name}`);
       await audit(tx, `staff:${userId}`, 'transfer.approve', req.code, { moved: taken });
+      await notifyStaff(tx, outbox, t.toFaskesId, {
+        kind: 'TRANSFER_APPROVED', view: 'permintaan',
+        title: `Mutasi ${req.code} disetujui`, body: `${taken} kantong diterima dari ${t.fromFaskes.name}.`,
+      });
       await settle(tx, req, outbox);
       return { status: 'APPROVED', moved: taken };
     });

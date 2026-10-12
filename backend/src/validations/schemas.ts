@@ -77,7 +77,15 @@ export const adjustStockSchema = z.object({
   }),
 });
 
-export const limitSchema = z.object({ query: z.object({ limit: z.coerce.number().int().min(1).max(100).default(10) }) });
+export const notificationListSchema = z.object({
+  query: z.object({
+    page: z.coerce.number().int().min(1).default(1),
+    pageSize: z.coerce.number().int().min(1).max(100).default(10),
+    unread: z.enum(['true', 'false']).default('false'),
+  }),
+});
+
+export const limitSchema =z.object({ query: z.object({ limit: z.coerce.number().int().min(1).max(100).default(10) }) });
 
 const area = z.string().refine(a => a in AREAS, 'Kecamatan tidak dikenal');
 // gps fix from the browser, limited to indonesia's bounding box

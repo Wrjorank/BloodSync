@@ -73,7 +73,7 @@ async function render(token) {
                 </div>
 
                 ${c.state === 'OPEN' ? `
-                    <a href="pendonor.html" class="block w-full text-center bg-brand-600 text-white font-bold py-3.5 rounded-xl hover:bg-brand-700 shadow-lg shadow-brand-500/30">
+                    <a href="/pendonor" class="block w-full text-center bg-brand-600 text-white font-bold py-3.5 rounded-xl hover:bg-brand-700 shadow-lg shadow-brand-500/30">
                         Saya bisa donor <i class="fa-solid fa-arrow-right ml-1"></i>
                     </a>
                     <p class="text-[11px] text-slate-400 text-center">Daftar dulu agar slot Anda dikunci dan tidak datang sia-sia.</p>` : ''}
@@ -102,6 +102,6 @@ function invalidView() {
             <div class="w-16 h-16 mx-auto rounded-full bg-red-100 text-red-600 flex items-center justify-center text-2xl mb-4"><i class="fa-solid fa-triangle-exclamation"></i></div>
             <h1 class="font-extrabold text-xl text-slate-900">Tautan tidak dikenali</h1>
             <p class="text-sm text-slate-500 mt-2">Kartu ini tidak terdaftar di sistem faskes. Kemungkinan pesan palsu atau sudah dihapus. Jangan sebarkan dan jangan transfer uang atas nama permintaan darah.</p>
-            <a href="index.html" class="inline-block mt-6 text-sm font-semibold text-brand-600 hover:underline">Ke beranda BloodSync</a>
+            <a href="/" class="inline-block mt-6 text-sm font-semibold text-brand-600 hover:underline">Ke beranda BloodSync</a>
         </div>`;
 }

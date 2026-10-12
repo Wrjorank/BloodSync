@@ -133,6 +133,8 @@ function logout() {
 
 function showLogin(show) {
     document.getElementById('loginView').classList.toggle('hidden', !show);
+    if (show && location.hash) history.replaceState(null, '', location.pathname + location.search);
+    else if (!show) showView(location.hash.slice(1));
     // keep keyboard focus inside the overlay
     document.querySelectorAll('body > aside, body > main').forEach(el => { el.inert = show; });
 }
@@ -146,7 +148,8 @@ function showView(name) {
     document.getElementById('btnBack').classList.toggle('hidden', name === 'ringkasan');
     document.getElementById('viewTitle').textContent = VIEWS[name][0];
     document.getElementById('viewDesc').textContent = VIEWS[name][1];
-    if (location.hash.slice(1) !== name) history.replaceState(null, '', `#${name}`);
+    // the login screen keeps a clean url; the view only lands in the hash once signed in
+    if (session.get('admin') && location.hash.slice(1) !== name) history.replaceState(null, '', `#${name}`);
 }
 
 function start() {

@@ -92,8 +92,26 @@ model Faskes {
   transfersIn  StockTransfer[] @relation("TransferTarget")
   requests  BloodRequest[]
   donations Donation[]
+  notifications Notification[]
 
   @@map("faskes")
+}
+
+// staff inbox of one faskes; readBy holds the ids of staff who have seen it, so read state is per person
+model Notification {
+  id        String   @id @default(uuid())
+  faskesId  String
+  faskes    Faskes   @relation(fields: [faskesId], references: [id], onDelete: Cascade)
+  kind      String   @db.VarChar(24)
+  title     String
+  body      String
+  // dashboard view the item opens: stok, permintaan, pemindai, pendonor
+  view      String   @db.VarChar(16)
+  readBy    String[] @default([])
+  createdAt DateTime @default(now())
+
+  @@index([faskesId, createdAt])
+  @@map("notifications")
 }
 
 model User {
