@@ -3,8 +3,15 @@
 import 'dotenv/config';
 import { Component, PrismaClient } from '@prisma/client';
 import bcrypt from 'bcryptjs';
+import { env } from '../src/config/env';
 
-const prisma = new PrismaClient();
+const prisma = new PrismaClient({
+  datasources: {
+    db: {
+      url: env.databaseUrl,
+    },
+  },
+});
 const DAY_MS = 86400000;
 const BLOOD_TYPES = ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'];
 

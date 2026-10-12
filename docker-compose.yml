@@ -1,25 +1,10 @@
 # development & demo lokal: docker compose up -d --build
 # bukan konfigurasi production (kata sandi default, NODE_ENV=development, WhatsApp tampil di browser)
-name: bloodsync
+name: mhs_bloodsync
 
 services:
-  db:
-    image: mysql:8.4
-    environment:
-      MYSQL_DATABASE: bloodsync
-      MYSQL_USER: bloodsync
-      MYSQL_PASSWORD: bloodsync
-      MYSQL_ROOT_PASSWORD: bloodsync-root
-    volumes:
-      - db-data:/var/lib/mysql
-    healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "-ubloodsync", "-pbloodsync"]
-      interval: 5s
-      timeout: 5s
-      retries: 30
-    restart: unless-stopped
-
   redis:
+    container_name: mhs_bloodsync_redis
     image: redis:7-alpine
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
@@ -27,23 +12,33 @@ services:
       timeout: 3s
       retries: 10
     restart: unless-stopped
+    networks:
+      - delcom-external-network
+    extra_hosts:
+    - "host.docker.internal:host-gateway"
 
   app:
+    container_name: mhs_bloodsync_app
     build: .
     depends_on:
-      db:
-        condition: service_healthy
       redis:
         condition: service_healthy
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     environment:
       NODE_ENV: development
-      PORT: 5000
-      DATABASE_URL: mysql://bloodsync:bloodsync@db:3306/bloodsync
+      DB_CONNECTION: ${DB_CONNECTION:-pgsql}
+      DB_HOST: ${DB_HOST:-host.docker.internal}
+      DB_PORT: ${DB_PORT:-5432}
+      DB_DATABASE: ${DB_DATABASE:-${DB_NAME:-bloodsync}}
+      DB_USERNAME: ${DB_USERNAME:-${DB_USER:-postgres}}
+      DB_PASSWORD: ${DB_PASSWORD:-${DB_PASS:-postgres}}
+      DB_SCHEMA: ${DB_SCHEMA:-public}
       REDIS_URL: redis://redis:6379
       JWT_SECRET: dev-docker-secret-ganti-sebelum-dipakai-publik
       CORS_ORIGIN: "*"
       # alamat yang dipakai di link pesan WhatsApp; isi url tunnel/domain bila WhatsApp asli aktif
-      PUBLIC_APP_URL: ${PUBLIC_APP_URL:-http://localhost:5000}
+      PUBLIC_APP_URL: ${PUBLIC_APP_URL:-http://localhost:${APP_PORT:-5000}}
       TRUST_PROXY: ${TRUST_PROXY:-0}
       UPLOAD_DIR: /app/backend/uploads
       ENABLE_DEMO_ROUTES: "true"
@@ -56,11 +51,22 @@ services:
       # notifikasi OTP lokal di browser host; aman karena port hanya dibuka di 127.0.0.1
       DEV_INBOX_TRUST_NETWORK: "true"
     ports:
-      - "127.0.0.1:5000:5000"
+      - "127.0.0.1:${APP_PORT:-5000}:5000"
     volumes:
       - uploads:/app/backend/uploads
     restart: unless-stopped
+    networks:
+      - delcom-external-network
 
 volumes:
-  db-data:
   uploads:
+
+networks:
+  delcom-external-network:
+    name: delcom-external-network
+    driver: bridge
+    external: true
+    ipam:
+      config:
+        - subnet: 10.33.0.0/16
+          gateway: 10.33.0.1

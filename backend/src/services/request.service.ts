@@ -42,17 +42,17 @@ async function uniqueCode(prefix: string, field: 'code' | 'publicToken', length:
   throw new Error('Gagal membuat kode unik');
 }
 
-// named locks belong to the session, not the transaction: the holder connection is pinned by an outer
-// transaction so the lock outlives the inner commit; a dropped connection releases it automatically
+// PostgreSQL advisory locks belong to the session/connection: the holder connection is pinned
+// by an outer transaction so the lock outlives the inner commit; a dropped connection releases it automatically
 async function withPhoneLock<T>(phone: string, fn: () => Promise<T>): Promise<T> {
   const key = `bloodsync:request:${phone}`;
   return prisma.$transaction(async lock => {
-    const [row] = await lock.$queryRaw<{ ok: unknown }[]>`SELECT GET_LOCK(${key}, 5) AS ok`;
-    if (Number(row?.ok) !== 1) throw new AppError(503, 'Pengajuan lain dari nomor ini sedang diproses. Coba lagi sebentar.', 'BUSY');
+    const [row] = await lock.$queryRaw<{ ok: boolean }[]>`SELECT pg_try_advisory_lock(hashtext(${key})) AS ok`;
+    if (!row?.ok) throw new AppError(503, 'Pengajuan lain dari nomor ini sedang diproses. Coba lagi sebentar.', 'BUSY');
     try {
       return await fn();
     } finally {
-      await lock.$queryRaw`SELECT RELEASE_LOCK(${key})`;
+      await lock.$queryRaw`SELECT pg_advisory_unlock(hashtext(${key}))`;
     }
   }, { timeout: 25000, maxWait: 5000 });
 }
@@ -72,7 +72,7 @@ export const requestService = {
 
     const code = await uniqueCode('REQ-', 'code', 6);
     const publicToken = await uniqueCode('', 'publicToken', 16);
-    // a per-phone mysql named lock, held on its own connection until the insert below has committed,
+    // a per-phone postgres advisory lock, held on its own connection until the insert below has committed,
     // so parallel submissions cannot all pass the active-request cap
     return withPhoneLock(phone, () => runInTx(async (tx, outbox) => {
       const active = await tx.bloodRequest.count({ where: { phone, status: { in: ACTIVE_REQUEST } } });

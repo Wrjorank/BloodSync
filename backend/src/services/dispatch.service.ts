@@ -116,7 +116,7 @@ export async function takeFromShelf(tx: Tx, req: BloodRequest, faskesId: string,
   const byType: { bloodType: string; quantity: number }[] = [];
   if (limit <= 0) return { taken: 0, byType };
   const shelf = await tx.$queryRaw<{ id: string; bloodType: string; quantity: number }[]>`
-    SELECT id, bloodType, quantity FROM stocks WHERE faskesId = ${faskesId} AND component = ${req.component} FOR UPDATE`;
+    SELECT id, "bloodType", quantity FROM stocks WHERE "faskesId" = ${faskesId} AND component = ${req.component}::"Component" FOR UPDATE`;
   let taken = 0;
   for (const type of compatibleDonorTypes(req.bloodType, req.component, true)) {
     const row = shelf.find(s => s.bloodType === type);
@@ -206,7 +206,7 @@ async function fillInvites(tx: Tx, req: BloodRequest, p: Progress, outbox: Outbo
   // deactivated is filtered on the locked (latest) row
   const open = matched.filter(d => !engaged(d.id)).map(d => d.id).sort();
   const lockedRows = open.length
-    ? await tx.$queryRaw<{ id: string }[]>`SELECT id FROM donors WHERE id IN (${Prisma.join(open)}) AND isActive = true ORDER BY id FOR UPDATE SKIP LOCKED`
+    ? await tx.$queryRaw<{ id: string }[]>`SELECT id FROM donors WHERE id IN (${Prisma.join(open)}) AND "isActive" = true ORDER BY id FOR UPDATE SKIP LOCKED`
     : [];
   const locked = new Set(lockedRows.map(r => r.id));
 

@@ -11,7 +11,7 @@ type Tx = Prisma.TransactionClient;
 // locks every active super admin row first, so two admins demoting / removing each other at once cannot both pass.
 // no-op when the target is not an active super admin
 async function keepAnotherSuperAdmin(tx: Tx, id: string) {
-  const admins = await tx.$queryRaw<{ id: string }[]>`SELECT id FROM users WHERE role = 'SUPER_ADMIN' AND isActive = true FOR UPDATE`;
+  const admins = await tx.$queryRaw<{ id: string }[]>`SELECT id FROM users WHERE role = 'SUPER_ADMIN'::"UserRole" AND "isActive" = true FOR UPDATE`;
   if (admins.some(a => a.id === id) && admins.length < 2) throw conflict('Harus tersisa minimal satu super admin aktif lain', 'LAST_SUPER_ADMIN');
 }
 

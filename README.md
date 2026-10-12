@@ -10,20 +10,21 @@ Butuh Docker Desktop saja.
 docker compose up -d --build
 ```
 
-Buka **http://localhost:5000** (Swagger: http://localhost:5000/docs). MySQL, Redis, migrasi, dan data awal disiapkan otomatis. Kode OTP muncul sebagai notifikasi di browser, juga di `docker compose logs -f app`.
+Buka **http://localhost:5000** (Swagger: http://localhost:5000/docs). Redis, migrasi, dan data awal disiapkan otomatis (menggunakan database PostgreSQL eksternal). Kode OTP muncul sebagai notifikasi di browser, juga di `docker compose logs -f app`.
 
+- Database: konfigurasi koneksi PostgreSQL eksternal di file `.env` menggunakan `DB_HOST`, `DB_PORT`, `DB_DATABASE`, `DB_USERNAME`, `DB_PASSWORD` (gaya Laravel).
 - WhatsApp asli: salin `.env.example` menjadi `.env`, isi `FONNTE_TOKEN`, lalu jalankan `docker compose up -d`. Langkah lengkapnya ada di bagian "WhatsApp: lokal vs production".
 - Port hanya dibuka untuk laptop ini (`127.0.0.1`). Untuk diakses HP lewat Wi-Fi, ubah `127.0.0.1:5000:5000` menjadi `5000:5000` dan hapus `DEV_INBOX_TRUST_NETWORK`.
-- Hentikan dengan `docker compose down`. Untuk menghapus database juga, pakai `docker compose down -v`.
+- Hentikan dengan `docker compose down`.
 - Konfigurasi ini untuk development dan demo, bukan production.
 
 ## Menjalankan tanpa Docker
 
-Butuh Node.js 20+, MySQL 8, dan (opsional) Redis.
+Butuh Node.js 20+, PostgreSQL 14+, dan (opsional) Redis.
 
 ```bash
 cd backend
-cp .env.example .env      # isi DATABASE_URL dan JWT_SECRET
+cp .env.example .env      # isi DB_HOST, DB_DATABASE, DB_USERNAME, DB_PASSWORD, dan JWT_SECRET
 npm install
 npm run setup             # generate client + migrasi + data awal (seed)
 npm run dev
