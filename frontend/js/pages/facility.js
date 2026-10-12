@@ -12,7 +12,7 @@ let LOW_STOCK = 2;
 // server data from the last load
 const data = { faskes: null, stock: [], active: [], history: [], options: {}, arrivals: [], movements: [], pool: null, transfers: { incoming: [], outgoing: [] } };
 // ui-only state that must survive re-renders
-const ui = { checks: {}, rejecting: {}, dispatch: {}, busy: false, modal: null, view: 'stock', wanted: null, unsubscribe: null, seq: 0 };
+const ui = { checks: {}, rejecting: {}, dispatch: {}, busy: false, modal: null, view: 'stock', wanted: null, loading: null, reloadQueued: false, unsubscribe: null, seq: 0 };
 
 document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('loginForm').addEventListener('submit', onLogin);
@@ -156,23 +156,36 @@ function start() {
 
 // fetch everything the dashboard shows, then render once
 // poll, socket and post-action reloads overlap, so only the newest call may render
+// one request for the whole dashboard. a reload asked for while one is running does not start a second one:
+// it waits, then runs once more with the latest state (a burst of realtime events costs at most two requests)
 async function load() {
     if (!session.get('staff')) return;
+    if (ui.loading) {
+        ui.reloadQueued = true;
+        return ui.loading;
+    }
     const seq = ++ui.seq;
+    ui.loading = (async () => {
+        try {
+            const { notifications, ...dashboard } = await store.staff.dashboard();
+            if (seq !== ui.seq) return;
+            Object.assign(data, dashboard);
+            render();
+            applyNotifications(notifications);
+        } catch (error) {
+            if (seq !== ui.seq) return;
+            if (error.status === 401) return logout();
+            toast(error.message, 'error');
+        }
+    })();
     try {
-        const [faskes, stock, active, history, arrivals, movements, pool, transfers] = await Promise.all([
-            store.staff.me(), store.staff.stock(), store.staff.requests('active'), store.staff.requests('history'),
-            store.staff.arrivals(), store.staff.movements(), store.staff.donorPool(), store.staff.transfers()
-        ]);
-        const needOptions = active.filter(r => r.status === 'APPROVED' || r.status === 'BROADCASTING');
-        const options = await Promise.all(needOptions.map(r => store.staff.stockOptions(r.id)));
-        if (seq !== ui.seq) return;
-        Object.assign(data, { faskes, stock, active, history, arrivals, movements, pool, transfers, options: Object.fromEntries(needOptions.map((r, i) => [r.id, options[i]])) });
-        render();
-    } catch (error) {
-        if (seq !== ui.seq) return;
-        if (error.status === 401) return logout();
-        toast(error.message, 'error');
+        await ui.loading;
+    } finally {
+        ui.loading = null;
+    }
+    if (ui.reloadQueued) {
+        ui.reloadQueued = false;
+        return load();
     }
 }
 
@@ -206,7 +219,6 @@ function render() {
     renderTransfers();
     renderMovements();
     renderDonorPool();
-    loadNotifications();
     document.getElementById('syncedAt').textContent = `Diperbarui ${fmtTime(Date.now())}`;
 }
 
@@ -282,6 +294,7 @@ const NOTIF_STYLE = {
     STOCK_LOW: ['fa-droplet', 'bg-amber-50 text-amber-600']
 };
 const notif = { latest: [], unread: null, page: 1, pageSize: 10, unreadOnly: false, pageData: null, seq: 0 };
+// keep in step with the dashboard endpoint, which sends the same first page
 const POPUP_SIZE = 6;
 
 function notifItem(n, roomy) {
@@ -317,14 +330,19 @@ async function loadNotifications() {
     try {
         const res = await store.staff.notifications(1, POPUP_SIZE);
         if (seq !== notif.seq) return;
-        if (notif.unread !== null && res.unread > notif.unread && res.items[0] && !res.items[0].read) toast(`Notifikasi baru: ${res.items[0].title}`);
-        notif.latest = res.items;
-        notif.unread = res.unread;
-        renderNotifications();
-        if (ui.view === 'notifications') loadNotifPage();
+        applyNotifications(res);
     } catch (error) {
         if (error.status !== 401) console.warn('[notifikasi]', error.message);
     }
+}
+
+// shared by the dashboard load and a standalone refresh (after marking items read)
+function applyNotifications(res) {
+    if (notif.unread !== null && res.unread > notif.unread && res.items[0] && !res.items[0].read) toast(`Notifikasi baru: ${res.items[0].title}`);
+    notif.latest = res.items;
+    notif.unread = res.unread;
+    renderNotifications();
+    if (ui.view === 'notifications') loadNotifPage();
 }
 
 function renderNotifications() {

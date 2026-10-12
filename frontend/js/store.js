@@ -204,6 +204,7 @@ const store = {
 
     staff: {
         me: () => api('GET', '/facility/me', { role: 'staff' }),
+        dashboard: () => api('GET', '/facility/me/dashboard', { role: 'staff' }),
         stock: () => api('GET', '/facility/me/stock', { role: 'staff' }),
         adjustStock: (body) => api('POST', '/facility/me/stock/adjust', { role: 'staff', body }),
         movements: (limit = 8) => api('GET', `/facility/me/movements?limit=${limit}`, { role: 'staff' }),

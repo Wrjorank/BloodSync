@@ -48,6 +48,7 @@ router.use('/requests', fam);
 const staff = Router();
 staff.use(requireStaff);
 staff.get('/', fk.me);
+staff.get('/dashboard', fk.dashboard);
 staff.get('/stock', fk.stock);
 staff.post('/stock/adjust', validate(s.adjustStockSchema), fk.adjustStock);
 staff.get('/movements', validate(s.limitSchema), fk.movements);
