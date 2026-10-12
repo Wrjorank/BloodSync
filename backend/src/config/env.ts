@@ -22,9 +22,18 @@ export function buildDatabaseUrl(): string {
   const host = stripQuotes(process.env.DB_HOST || '127.0.0.1');
   const port = stripQuotes(process.env.DB_PORT || '5432');
   const db = stripQuotes(process.env.DB_DATABASE || process.env.DB_NAME || 'bloodsync');
-  const schema = stripQuotes(process.env.DB_SCHEMA || 'public');
+  const schema = stripQuotes(process.env.DB_SCHEMA || '');
 
-  return `${connection}://${auth}@${host}:${port}/${db}?schema=${schema}`;
+  const params: string[] = [];
+  if (schema && schema !== 'public') {
+    params.push(`schema=${schema}`);
+  }
+  if (port === '6432' || process.env.DB_PGBOUNCER === 'true') {
+    params.push('pgbouncer=true');
+  }
+  const query = params.length ? `?${params.join('&')}` : '';
+
+  return `${connection}://${auth}@${host}:${port}/${db}${query}`;
 }
 
 const databaseUrl = buildDatabaseUrl();
