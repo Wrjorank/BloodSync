@@ -138,6 +138,16 @@ Tombol **Import** dan **Export** ada di kanan atas dasbor faskes dan admin.
 | Petugas faskes | Stok (stock opname): template sudah berisi stok saat ini, cukup ubah kolom Jumlah. Selisihnya dicatat sebagai mutasi stok. |
 | Super admin | Faskes (banyak sekaligus), akun petugas (kata sandi awal dibuat acak dan diunduh sekali setelah disimpan) |
 
+## Tes otomatis
+
+```bash
+cd backend
+npm test                                      # unit + routing halaman, tanpa database (beberapa detik)
+API_URL=http://localhost:5000 npm test        # + smoke test ke server yang sedang jalan (lokal atau staging)
+```
+
+Yang dites: kompatibilitas golongan darah, hitungan progres kebutuhan, masa pemulihan pendonor, pembacaan browser/platform untuk log aktivitas, URL halaman dan redirect link lama, cache aset, serta smoke test API (health, sesi wajib, webhook, kompresi).
+
 ## Struktur
 
 ```
