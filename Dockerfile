@@ -14,6 +14,7 @@ RUN npm ci
 COPY backend/prisma ./prisma
 RUN npx prisma generate
 
+COPY backend/scripts ./scripts
 COPY backend/tsconfig.json ./
 COPY backend/src ./src
 RUN npx tsc

@@ -1,11 +1,11 @@
 # BloodSync API
 
-Express + Prisma (MySQL) + Redis + Socket.io. Dispatch engine, stok, tiket donor, dan kartu publik yang tadinya disimulasikan di `store.js` sekarang berjalan di sini.
+Express + Prisma (PostgreSQL) + Redis + Socket.io. Dispatch engine, stok, tiket donor, dan kartu publik yang tadinya disimulasikan di `store.js` sekarang berjalan di sini.
 
 ## Setup
 
 ```bash
-cp .env.example .env        # isi DATABASE_URL, REDIS_URL, JWT_SECRET
+cp .env.example .env        # isi DB_* (koneksi PostgreSQL), REDIS_URL, JWT_SECRET
 npm install
 npm run setup               # prisma generate + migrate deploy + seed
 npm run dev                 # http://localhost:5000

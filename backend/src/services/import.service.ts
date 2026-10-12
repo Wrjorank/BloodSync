@@ -354,7 +354,7 @@ export const importService = {
         });
         // locked read: an allocation running at the same moment cannot be overwritten silently
         const [row] = await tx.$queryRaw<{ id: string; quantity: number }[]>`
-          SELECT id, quantity FROM stocks WHERE faskesId = ${faskesId} AND component = ${r.component} AND bloodType = ${r.bloodType} FOR UPDATE`;
+          SELECT id, quantity FROM stocks WHERE "faskesId" = ${faskesId} AND component = ${r.component}::"Component" AND "bloodType" = ${r.bloodType} FOR UPDATE`;
         const issue = opnameIssue(r, Number(row.quantity));
         if (issue) {
           issues.push({ row: n, message: issue });

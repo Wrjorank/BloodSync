@@ -10,7 +10,7 @@ Butuh Docker Desktop saja.
 docker compose up -d --build
 ```
 
-Buka **http://localhost:5000** (Swagger: http://localhost:5000/docs). MySQL, Redis, migrasi, dan data awal disiapkan otomatis. Kode OTP muncul sebagai notifikasi di browser, juga di `docker compose logs -f app`.
+Buka **http://localhost:5000** (Swagger: http://localhost:5000/docs). Redis, migrasi, dan data awal disiapkan otomatis (menggunakan database PostgreSQL eksternal). Kode OTP muncul sebagai notifikasi di browser, juga di `docker compose logs -f app`.
 
 ## Akses lewat Tailscale
 
@@ -42,11 +42,11 @@ Aplikasi akan terbuka di `http://<nama-device>.ts.net:5000` (atau IP Tailnet). U
 
 ## Menjalankan tanpa Docker
 
-Butuh Node.js 20+, MySQL 8, dan (opsional) Redis.
+Butuh Node.js 20+, PostgreSQL 14+, dan (opsional) Redis.
 
 ```bash
 cd backend
-cp .env.example .env      # isi DATABASE_URL dan JWT_SECRET
+cp .env.example .env      # isi DB_HOST, DB_DATABASE, DB_USERNAME, DB_PASSWORD, dan JWT_SECRET
 npm install
 npm run setup             # generate client + migrasi + data awal (seed)
 npm run dev
@@ -83,6 +83,16 @@ Akun awal dibuat oleh seed, semuanya dengan kata sandi `password`:
 | Syarat | tidak ada | `FONNTE_TOKEN` dan `WA_WEBHOOK_SECRET` wajib, lihat `backend/.env.production.example` |
 
 Notifikasi lokal hanya diterima browser di komputer yang sama. Koneksi lewat tunnel atau proxy ditolak, dan fitur ini selalu mati di production. Kode OTP tidak pernah dikembalikan oleh API.
+
+## Semua orang bisa dipanggil, tanpa daftar akun
+
+Dispatch Engine tidak hanya memanggil pendonor yang mendaftar di aplikasi. Setiap kali gelombang panggilan dimulai atau radius diperluas, engine juga membaca data penduduk di sekitar faskes (nama, tanggal lahir, golongan darah, alamat, nomor HP). Penduduk yang golongan darahnya cocok dan berusia 17–60 tahun otomatis dijadikan pendonor (`source = REGISTRY`), lalu menerima WA panggilan darurat yang sama.
+
+- Mereka bisa membalas *1*/*2* di WA, atau masuk ke `pendonor.html` cukup dengan OTP, tanpa form pendaftaran.
+- Pesan WA pertama menjelaskan alasan mereka dihubungi. Balasan *STOP* menonaktifkan nomor tersebut untuk seterusnya.
+- Sumber data diatur di `backend/src/services/population.service.ts`. Untuk lomba, `POPULATION_SOURCE=local` memakai tabel `residents` yang diisi seed dengan 400 penduduk dummy di Jakarta. Penduduk dummy hanya muncul di notifikasi WA lokal, tidak pernah dikirim ke HP asli.
+- Untuk demo WA ke HP asli, isi `DEMO_RESIDENT_PHONE` (plus `FONNTE_TOKEN`). Nomor itu masuk ke data penduduk di dekat RSUD Tarakan dan ikut dipanggil tanpa pernah mendaftar.
+- Integrasi nyata bisa ke lembaga mana pun yang memegang data penduduk (Dukcapil, BPJS, PMI, Satu Data, dll.). Set `POPULATION_SOURCE=external`, `POPULATION_API_URL`, dan `POPULATION_API_KEY`. Format API yang diharapkan tertulis di `population.service.ts`; kalau format lembaga berbeda, cukup ubah `mapResident`. Integrasi ini butuh perjanjian berbagi data dan dasar hukum pemrosesan sesuai UU PDP.
 
 ## Alur penggunaan (3 tab berdampingan)
 

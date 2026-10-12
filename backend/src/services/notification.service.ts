@@ -150,9 +150,14 @@ export async function flush(outbox: Outbox) {
         await step(`undangan ${t.id}`, async () => {
           io?.to(rooms.donor(t.donorId)).emit('invite:new', { ticketId: t.id, requestId: r.id });
           await channels.push(t.donorId, 'Panggilan Darurat BloodSync', text);
-          // seeded donors carry made-up numbers that may belong to real people: in-app only, never whatsapp
-          if (t.donor.isSimulated) return;
-          await channels.whatsapp(t.donor.phone, `🩸 ${text}\n\nBalas *1* = Siap Mendonor\nBalas *2* = Tidak Bisa\n\nAtau buka ${env.publicAppUrl}/pendonor.html`)
+          const lines = [`🩸 ${text}`, ``, `Balas *1* = Siap Mendonor`, `Balas *2* = Tidak Bisa`, ``, `Atau buka ${env.publicAppUrl}/pendonor.html (masuk dengan nomor WA ini, tanpa daftar)`];
+          // registry donors never signed up: say why they got this and how to stop it
+          if (t.donor.source === 'REGISTRY') {
+            lines.push(``, `Anda menerima pesan ini karena terdata sebagai calon pendonor golongan darah ${t.donor.bloodType} di dekat ${r.faskes.name}. Balas *STOP* bila tidak ingin dihubungi lagi.`);
+          }
+          // seeded donors carry made-up numbers that may belong to real people: local on-screen inbox only, never a real phone
+          if (t.donor.isSimulated) return toDevInbox(t.donor.phone, lines.join('\n'), 'pesan');
+          await channels.whatsapp(t.donor.phone, lines.join('\n'))
             .catch(err => console.error(`[whatsapp] gagal kirim undangan ${maskPhone(t.donor.phone)}`, err));
         });
       }

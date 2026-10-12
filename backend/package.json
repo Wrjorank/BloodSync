@@ -7,11 +7,11 @@
     "build": "tsc",
     "start": "node dist/index.js",
     "typecheck": "tsc --noEmit",
-    "prisma:generate": "prisma generate",
-    "db:migrate": "prisma migrate deploy",
-    "db:migrate:dev": "prisma migrate dev",
-    "db:seed": "prisma db seed",
-    "db:reset": "prisma migrate reset --force",
+    "prisma:generate": "node scripts/prisma-runner.js generate",
+    "db:migrate": "node scripts/prisma-runner.js migrate deploy",
+    "db:migrate:dev": "node scripts/prisma-runner.js migrate dev",
+    "db:seed": "node scripts/prisma-runner.js db seed",
+    "db:reset": "node scripts/prisma-runner.js migrate reset --force",
     "setup": "npm run prisma:generate && npm run db:migrate && npm run db:seed"
   },
   "dependencies": {

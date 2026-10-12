@@ -45,7 +45,7 @@ export const faskesService = {
         update: {},
       });
       const [row] = await tx.$queryRaw<{ id: string; quantity: number }[]>`
-        SELECT id, quantity FROM stocks WHERE faskesId = ${faskesId} AND component = ${input.component} AND bloodType = ${input.bloodType} FOR UPDATE`;
+        SELECT id, quantity FROM stocks WHERE "faskesId" = ${faskesId} AND component = ${input.component}::"Component" AND "bloodType" = ${input.bloodType} FOR UPDATE`;
       if (Number(row.quantity) + input.delta < 0) throw badRequest('Stok tidak boleh negatif');
       await tx.stock.update({ where: { id: row.id }, data: { quantity: { increment: input.delta } } });
       await tx.stockMovement.create({

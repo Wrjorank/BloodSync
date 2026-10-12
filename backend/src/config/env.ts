@@ -2,6 +2,26 @@ import path from 'path';
 import dotenv from 'dotenv';
 
 dotenv.config();
+dotenv.config({ path: path.resolve(__dirname, '../../../.env') });
+
+export function buildDatabaseUrl(): string {
+  if (process.env.DATABASE_URL) return process.env.DATABASE_URL;
+
+  const rawConn = process.env.DB_CONNECTION || 'pgsql';
+  const connection = rawConn === 'pgsql' ? 'postgresql' : rawConn;
+  const user = encodeURIComponent(process.env.DB_USERNAME || process.env.DB_USER || 'postgres');
+  const pass = process.env.DB_PASSWORD !== undefined ? process.env.DB_PASSWORD : (process.env.DB_PASS !== undefined ? process.env.DB_PASS : '');
+  const auth = pass ? `${user}:${encodeURIComponent(pass)}` : user;
+  const host = process.env.DB_HOST || '127.0.0.1';
+  const port = process.env.DB_PORT || '5432';
+  const db = process.env.DB_DATABASE || process.env.DB_NAME || 'bloodsync';
+  const schema = process.env.DB_SCHEMA || 'public';
+
+  return `${connection}://${auth}@${host}:${port}/${db}?schema=${schema}`;
+}
+
+const databaseUrl = buildDatabaseUrl();
+process.env.DATABASE_URL = databaseUrl;
 
 const nodeEnv = process.env.NODE_ENV || 'development';
 const isProduction = nodeEnv === 'production';
@@ -38,7 +58,8 @@ if (isProduction && waWebhookSecret.length < 16) throw new Error('WA_WEBHOOK_SEC
 export const env = {
   nodeEnv,
   isProduction,
-  port: Number(process.env.PORT || 5000),
+  databaseUrl,
+  port: Number(process.env.APP_PORT || process.env.PORT || 5000),
   redisUrl: process.env.REDIS_URL || '',
   jwtSecret,
   staffTokenTtl: process.env.STAFF_TOKEN_TTL || '12h',
@@ -46,7 +67,7 @@ export const env = {
   corsOrigins,
   trustProxy,
   uploadDir: path.resolve(process.env.UPLOAD_DIR || 'uploads'),
-  publicAppUrl: (process.env.PUBLIC_APP_URL || 'http://localhost:5000').replace(/\/$/, ''),
+  publicAppUrl: (process.env.PUBLIC_APP_URL || `http://localhost:${process.env.APP_PORT || process.env.PORT || 5000}`).replace(/\/$/, ''),
   engineIntervalMs: Number(process.env.ENGINE_INTERVAL_MS || 5000),
   enableDemoRoutes: !isProduction && process.env.ENABLE_DEMO_ROUTES !== 'false',
   // swagger ui at /docs; on by default outside production, opt-in there
@@ -54,6 +75,13 @@ export const env = {
   // fonnte whatsapp gateway. production requires it
   fonnteToken,
   waWebhookSecret,
+  // where dispatch finds people who never signed up: 'local' = residents table (dummy),
+  // 'external' = api of an institution holding population data (dukcapil, bpjs, ...)
+  populationSource: (process.env.POPULATION_SOURCE || 'local') as 'local' | 'external',
+  populationApiUrl: (process.env.POPULATION_API_URL || '').replace(/\/$/, ''),
+  populationApiKey: process.env.POPULATION_API_KEY || '',
+  // 'false' turns the registry off: only donors who signed up in the app are called
+  enableRegistry: process.env.ENABLE_REGISTRY !== 'false',
   // local development without a gateway: whatsapp messages (otp included) are shown as on-screen
   // notifications in browsers on this machine instead. never on in production
   devInbox: !isProduction && !fonnteToken,

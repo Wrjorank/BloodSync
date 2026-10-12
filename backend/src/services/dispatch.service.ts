@@ -5,6 +5,7 @@ import { DISPATCH, compatibleDonorTypes } from '../constants/blood';
 import { DAY_MS, boundingBox, distanceKm, eligibility, randomCode } from '../utils/helpers';
 import { notFound } from '../utils/AppError';
 import { Outbox, flush } from './notification.service';
+import { ageAllowed, enlistNearby } from './population.service';
 
 export type Tx = Prisma.TransactionClient;
 
@@ -115,7 +116,7 @@ export async function takeFromShelf(tx: Tx, req: BloodRequest, faskesId: string,
   const byType: { bloodType: string; quantity: number }[] = [];
   if (limit <= 0) return { taken: 0, byType };
   const shelf = await tx.$queryRaw<{ id: string; bloodType: string; quantity: number }[]>`
-    SELECT id, bloodType, quantity FROM stocks WHERE faskesId = ${faskesId} AND component = ${req.component} FOR UPDATE`;
+    SELECT id, "bloodType", quantity FROM stocks WHERE "faskesId" = ${faskesId} AND component = ${req.component}::"Component" FOR UPDATE`;
   let taken = 0;
   for (const type of compatibleDonorTypes(req.bloodType, req.component, true)) {
     const row = shelf.find(s => s.bloodType === type);
@@ -182,11 +183,16 @@ async function fillInvites(tx: Tx, req: BloodRequest, p: Progress, outbox: Outbo
   const radius = req.radiusKm!;
   const box = boundingBox(faskes, radius);
   const types = compatibleDonorTypes(req.bloodType, req.component, req.allowCompatible);
+  const current = await tx.dispatchWave.findUnique({ where: { requestId_wave: { requestId: req.id, wave: req.wave } } });
+
+  // people who never signed up: pulled from population data once per wave (first fill, i.e. each new radius)
+  if (!current) await enlistNearby(tx, faskes, radius, types);
 
   const nearby = (await tx.donor.findMany({
     where: { ...LIVE_DONOR, lat: { gte: box.minLat, lte: box.maxLat }, lng: { gte: box.minLng, lte: box.maxLng } },
-    select: { id: true, bloodType: true, lat: true, lng: true, lastDonationAt: true, responseRate: true },
+    select: { id: true, bloodType: true, lat: true, lng: true, lastDonationAt: true, responseRate: true, birthDate: true },
   }))
+    .filter(d => ageAllowed(d.birthDate))
     .map(d => ({ ...d, dist: distanceKm(faskes, d) }))
     .filter(d => d.dist <= radius);
 
@@ -200,7 +206,7 @@ async function fillInvites(tx: Tx, req: BloodRequest, p: Progress, outbox: Outbo
   // deactivated is filtered on the locked (latest) row
   const open = matched.filter(d => !engaged(d.id)).map(d => d.id).sort();
   const lockedRows = open.length
-    ? await tx.$queryRaw<{ id: string }[]>`SELECT id FROM donors WHERE id IN (${Prisma.join(open)}) AND isActive = true ORDER BY id FOR UPDATE SKIP LOCKED`
+    ? await tx.$queryRaw<{ id: string }[]>`SELECT id FROM donors WHERE id IN (${Prisma.join(open)}) AND "isActive" = true ORDER BY id FOR UPDATE SKIP LOCKED`
     : [];
   const locked = new Set(lockedRows.map(r => r.id));
 
@@ -254,7 +260,6 @@ async function fillInvites(tx: Tx, req: BloodRequest, p: Progress, outbox: Outbo
 
   const invited = await tx.donorTicket.count({ where: { requestId: req.id, wave: req.wave } });
   const next = { radiusKm: radius, ...stats, invited };
-  const current = await tx.dispatchWave.findUnique({ where: { requestId_wave: { requestId: req.id, wave: req.wave } } });
   const changed = !current || (Object.keys(next) as (keyof typeof next)[]).some(k => current[k] !== next[k]);
   if (changed) {
     await tx.dispatchWave.upsert({

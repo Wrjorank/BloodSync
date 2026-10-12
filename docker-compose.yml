@@ -1,6 +1,6 @@
 # development & demo lokal: docker compose up -d --build
 # bukan konfigurasi production (kata sandi default, NODE_ENV=development, WhatsApp tampil di browser)
-name: bloodsync
+name: mhs_bloodsync
 
 services:
   db:
@@ -22,6 +22,7 @@ services:
     restart: unless-stopped
 
   redis:
+    container_name: mhs_bloodsync_redis
     image: redis:7-alpine
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
@@ -29,37 +30,73 @@ services:
       timeout: 3s
       retries: 10
     restart: unless-stopped
+    networks:
+      - delcom-external-network
+    extra_hosts:
+    - "host.docker.internal:host-gateway"
 
   app:
+    container_name: mhs_bloodsync_app
     build: .
     depends_on:
-      db:
-        condition: service_healthy
       redis:
         condition: service_healthy
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     environment:
       NODE_ENV: development
-      PORT: 5000
-      DATABASE_URL: mysql://bloodsync:bloodsync@db:3306/bloodsync
+      DB_CONNECTION: ${DB_CONNECTION:-pgsql}
+      DB_HOST: ${DB_HOST:-host.docker.internal}
+      DB_PORT: ${DB_PORT:-5432}
+      DB_DATABASE: ${DB_DATABASE:-${DB_NAME:-bloodsync}}
+      DB_USERNAME: ${DB_USERNAME:-${DB_USER:-postgres}}
+      DB_PASSWORD: ${DB_PASSWORD:-${DB_PASS:-postgres}}
+      DB_SCHEMA: ${DB_SCHEMA:-public}
       REDIS_URL: redis://redis:6379
       JWT_SECRET: dev-docker-secret-ganti-sebelum-dipakai-publik
       CORS_ORIGIN: "*"
+<<<<<<< HEAD
       # alamat yang dipakai di link pesan WhatsApp; untuk Tailscale isi URL Tailnet device, misal http://iky-1.ts.net:5000
       PUBLIC_APP_URL: ${PUBLIC_APP_URL:-http://localhost:5000}
+=======
+      # alamat yang dipakai di link pesan WhatsApp; isi url tunnel/domain bila WhatsApp asli aktif
+      PUBLIC_APP_URL: ${PUBLIC_APP_URL:-http://localhost:${APP_PORT:-5000}}
+>>>>>>> 51529971f9501c6623b0abae6d91a3c96d8fac7b
       TRUST_PROXY: ${TRUST_PROXY:-0}
       UPLOAD_DIR: /app/backend/uploads
       ENABLE_DEMO_ROUTES: "true"
       ENABLE_API_DOCS: "true"
       FONNTE_TOKEN: ${FONNTE_TOKEN:-}
       WA_WEBHOOK_SECRET: ${WA_WEBHOOK_SECRET:-}
+<<<<<<< HEAD
       # notifikasi OTP lokal di browser host; jika diakses lewat Tailscale, batasi ke host lokal saat masih pakai demo
       DEV_INBOX_TRUST_NETWORK: "true"
     ports:
       - "5000:5000"
+=======
+      DEMO_RESIDENT_PHONE: ${DEMO_RESIDENT_PHONE:-}
+      DEMO_RESIDENT_NAME: ${DEMO_RESIDENT_NAME:-}
+      DEMO_RESIDENT_BLOOD: ${DEMO_RESIDENT_BLOOD:-}
+      # notifikasi OTP lokal di browser host; aman karena port hanya dibuka di 127.0.0.1
+      DEV_INBOX_TRUST_NETWORK: "true"
+    ports:
+      - "127.0.0.1:${APP_PORT:-5000}:5000"
+>>>>>>> 51529971f9501c6623b0abae6d91a3c96d8fac7b
     volumes:
       - uploads:/app/backend/uploads
     restart: unless-stopped
+    networks:
+      - delcom-external-network
 
 volumes:
-  db-data:
   uploads:
+
+networks:
+  delcom-external-network:
+    name: delcom-external-network
+    driver: bridge
+    external: true
+    ipam:
+      config:
+        - subnet: 10.33.0.0/16
+          gateway: 10.33.0.1
