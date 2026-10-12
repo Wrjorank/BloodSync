@@ -22,6 +22,7 @@ router.post('/auth/staff/login', rateLimit('login', 10, 300), validate(s.staffLo
 router.post('/auth/otp/request', rateLimit('otp', 10, 600), validate(s.otpRequestSchema), auth.requestOtp);
 router.post('/auth/otp/verify', rateLimit('otp-verify', 20, 600), validate(s.otpVerifySchema), auth.verifyOtp);
 router.get('/auth/me', auth.me);
+router.post('/auth/logout', auth.logout);
 
 // ---------- webhooks (shared secret in the url) ----------
 // fonnte delivers every donor reply from one ip, so the cap must stay above a full dispatch wave
@@ -107,7 +108,8 @@ adm.post('/users', validate(s.createUserSchema), admin.createUser);
 adm.patch('/users/:id', validate(s.updateUserSchema), admin.updateUser);
 adm.delete('/users/:id', validate(s.idParamSchema), admin.deleteUser);
 adm.patch('/users/:id/active', validate(s.activeSchema), admin.setUserActive);
-adm.get('/audit', validate(s.auditQuerySchema), admin.audit);
+adm.get('/audit-logs', validate(s.auditQuerySchema), admin.auditLogs);
+adm.get('/audit-logs/:id', validate(s.idParamSchema), admin.auditLog);
 adm.get('/export/:dataset', rateLimit('export', 30, 600), validate(s.adminExportSchema), exporter.admin);
 adm.get('/import/:dataset/template', validate(s.adminImportSchema), importer.adminTemplate);
 adm.post('/import/:dataset', rateLimit('import', 30, 600), xlsxUpload, validate(s.adminImportSchema), importer.admin);

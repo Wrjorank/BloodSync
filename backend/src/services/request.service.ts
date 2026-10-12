@@ -85,7 +85,7 @@ export const requestService = {
         },
       });
       await addEvent(tx, req.id, 'Pengajuan dibuat oleh keluarga pasien');
-      await audit(tx, `pemohon:${phone}`, 'request.create', req.code);
+      await audit(tx, `family:${phone}`, 'request.create', req.code);
       const kritis = req.urgency === 'KRITIS';
       await notifyStaff(tx, outbox, req.faskesId, {
         kind: kritis ? 'REQUEST_URGENT' : 'REQUEST_NEW', view: 'requests',
@@ -118,7 +118,7 @@ export const requestService = {
       if (req.phone !== phone) throw notFound('Permintaan tidak ditemukan');
       if (!ACTIVE_REQUEST.includes(req.status)) throw conflict('Permintaan sudah tidak aktif', 'INVALID_STATE');
       await closeRequestTx(tx, req, 'Dibatalkan oleh keluarga pasien', 'Permintaan dibatalkan keluarga. Anda tidak perlu datang.', outbox);
-      await audit(tx, `pemohon:${phone}`, 'request.cancel', req.code);
+      await audit(tx, `family:${phone}`, 'request.cancel', req.code);
       await notifyStaff(tx, outbox, req.faskesId, {
         kind: 'REQUEST_CANCELLED', view: 'requests',
         title: `Pengajuan ${req.code} dibatalkan`, body: `Keluarga ${req.patientName} membatalkan pengajuan.`,
@@ -188,8 +188,9 @@ export const requestService = {
     return runInTx(async (tx, outbox) => {
       const req = await lockRequest(tx, id);
       assertOwned(req, faskesId, ['PENDING_VERIFICATION']);
+      const from = req.status;
       await setStatus(tx, req, 'APPROVED', 'Surat pengantar diverifikasi petugas faskes', outbox);
-      await audit(tx, `staff:${userId}`, 'request.approve', req.code);
+      await audit(tx, `staff:${userId}`, 'request.approve', req.code, undefined, { before: { status: from }, after: { status: req.status } });
       return { id, status: req.status };
     });
   },
@@ -198,8 +199,9 @@ export const requestService = {
     return runInTx(async (tx, outbox) => {
       const req = await lockRequest(tx, id);
       assertOwned(req, faskesId, ['PENDING_VERIFICATION']);
+      const from = req.status;
       await setStatus(tx, req, 'REJECTED', `Ditolak: ${reason}`, outbox, { rejectReason: reason });
-      await audit(tx, `staff:${userId}`, 'request.reject', req.code, { reason });
+      await audit(tx, `staff:${userId}`, 'request.reject', req.code, { reason }, { before: { status: from }, after: { status: req.status, rejectReason: reason } });
       return { id, status: req.status };
     });
   },
@@ -353,8 +355,9 @@ export const requestService = {
     return runInTx(async (tx, outbox) => {
       const req = await lockRequest(tx, id);
       assertOwned(req, faskesId, ACTIVE_REQUEST);
+      const from = req.status;
       await closeRequestTx(tx, req, 'Panggilan ditutup oleh petugas faskes', 'Permintaan ditutup faskes. Anda tidak perlu datang.', outbox);
-      await audit(tx, `staff:${userId}`, 'request.close', req.code);
+      await audit(tx, `staff:${userId}`, 'request.close', req.code, undefined, { before: { status: from }, after: { status: req.status } });
       return { id, status: req.status };
     });
   },

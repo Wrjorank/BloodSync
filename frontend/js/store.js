@@ -192,6 +192,8 @@ const store = {
     requestOtp: (phone, purpose) => api('POST', '/auth/otp/request', { body: { phone, purpose } }),
     verifyOtp: (phone, purpose, code) => api('POST', '/auth/otp/verify', { body: { phone, purpose, code } }),
     staffLogin: (email, password) => api('POST', '/auth/staff/login', { body: { email, password } }),
+    // records the sign-out in the activity log; the session is dropped client side regardless
+    logout: (role) => api('POST', '/auth/logout', { role }).catch(() => undefined),
 
     family: {
         create: (form) => api('POST', '/requests', { role: 'family', form }),
@@ -262,7 +264,9 @@ const store = {
         updateUser: (id, body) => api('PATCH', `/admin/users/${encodeURIComponent(id)}`, { role: 'admin', body }),
         deleteUser: (id) => api('DELETE', `/admin/users/${encodeURIComponent(id)}`, { role: 'admin' }),
         setUserActive: (id, isActive) => api('PATCH', `/admin/users/${id}/active`, { role: 'admin', body: { isActive } }),
-        audit: (page = 1, actor = '', pageSize = 15) => api('GET', `/admin/audit?page=${page}&pageSize=${pageSize}${actor ? '&actor=' + encodeURIComponent(actor) : ''}`, { role: 'admin' }),
+        // query: { page, pageSize, search, event, actorType, from, to, sort, dir }; empty values are left out
+        auditLogs: (query) => api('GET', '/admin/audit-logs?' + new URLSearchParams(Object.entries(query).filter(([, v]) => v !== '' && v != null)), { role: 'admin' }),
+        auditLog: (id) => api('GET', `/admin/audit-logs/${encodeURIComponent(id)}`, { role: 'admin' }),
         export: (dataset, query) => download('admin', `/admin/export/${encodeURIComponent(dataset)}${query ? '?' + query : ''}`),
         importTemplate: (dataset) => download('admin', `/admin/import/${encodeURIComponent(dataset)}/template`),
         import: (dataset, file, commit) => upload('admin', `/admin/import/${encodeURIComponent(dataset)}${commit ? '?commit=1' : ''}`, file)

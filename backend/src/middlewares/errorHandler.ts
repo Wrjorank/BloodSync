@@ -3,6 +3,7 @@ import { Request, Response, NextFunction } from 'express';
 import { Prisma } from '@prisma/client';
 import { MulterError } from 'multer';
 import { AppError } from '../utils/AppError';
+import { auditNow } from '../services/audit.service';
 
 export const notFoundHandler = (req: Request, res: Response) => {
   res.status(404).json({ success: false, error: { code: 'NOT_FOUND', message: `Endpoint ${req.method} ${req.path} tidak ada` } });
@@ -28,6 +29,10 @@ export const errorHandler = (err: unknown, req: Request, res: Response, _next: N
     error = new AppError(400, 'Body JSON tidak valid', 'INVALID_JSON');
   } else {
     console.error('[error]', err);
+    // admins see the failure in the activity log; the client never gets the raw message
+    const a = req.auth;
+    const actor = !a ? 'guest' : a.kind === 'staff' ? `${a.role === 'SUPER_ADMIN' ? 'admin' : 'staff'}:${a.sub}` : `${a.kind === 'donor' ? 'donor' : 'family'}:${a.kind === 'donor' ? a.phone : a.sub}`;
+    void auditNow(actor, 'system.error', undefined, { name: (err as Error)?.name, message: String((err as Error)?.message || err).slice(0, 300) });
     // full detail stays in the server log; raw messages can carry prisma internals and file paths
     error = new AppError(500, 'Terjadi kesalahan pada server', 'INTERNAL');
   }

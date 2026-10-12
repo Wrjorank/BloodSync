@@ -275,7 +275,12 @@ const schemas: Record<string, Schema> = {
   UserSaved: obj({ id: str(), name: str(), email: str(), role: ref('UserRole'), faskesId: nullable(str()) }),
   AuditLog: obj({
     id: str(), actor: str({ example: 'staff:3f1c...' }), action: str({ example: 'request.approve' }), ref: nullable(str()),
-    meta: nullable(obj({}, [], { additionalProperties: true })), ip: nullable(str()), createdAt: date(),
+    event: str({ example: 'UPDATED' }), subjectType: nullable(str({ example: 'BloodRequest' })),
+    user: obj({ type: str({ example: 'staff' }), label: str(), email: nullable(str()), role: nullable(str()), faskes: nullable(str()) }),
+    ip: nullable(str()), browser: nullable(str({ example: 'Edge 155.0.0.0' })), platform: nullable(str({ example: 'Windows' })), device: nullable(str({ example: 'desktop' })),
+    method: nullable(str()), url: nullable(str()), userAgent: nullable(str()),
+    meta: nullable(obj({}, [], { additionalProperties: true })), before: nullable(obj({}, [], { additionalProperties: true })), after: nullable(obj({}, [], { additionalProperties: true })),
+    hasData: { type: 'boolean' }, createdAt: date(),
   }),
   Overview: obj({
     requests: obj({}, [], { additionalProperties: int(), description: 'Jumlah permintaan per RequestStatus' }),
@@ -382,6 +387,13 @@ export const openApiSpec = {
         description: 'Kode salah 5 kali → kode hangus. Error code: OTP_EXPIRED, OTP_INVALID.',
         requestBody: json(obj({ phone: str({ example: '081234567890' }), purpose: str({ enum: ['FAMILY', 'DONOR'] }), code: str({ pattern: '^\\d{6}$', example: '123456' }) })),
         responses: { 200: ok(ref('OtpVerifyResult'), 'Nomor terverifikasi', 'Nomor terverifikasi'), 400: errRef('BadRequest'), 403: errRef('Forbidden'), 429: errRef('TooMany') },
+      },
+    },
+    '/auth/logout': {
+      post: {
+        tags: ['Auth'], summary: 'Catat keluar (staff/admin) di log aktivitas; token tetap dibuang di sisi klien',
+        security: [{ staffAuth: [] }, { adminAuth: [] }],
+        responses: { 200: ok(nullable(obj({}))) },
       },
     },
     '/auth/me': {
@@ -790,15 +802,28 @@ export const openApiSpec = {
         responses: { 200: ok(obj({ id: str(), isActive: bool() }), 'Diperbarui', 'Status akun diperbarui'), ...common, 404: errRef('NotFound'), 409: errRef('Conflict') },
       },
     },
-    '/admin/audit': {
+    '/admin/audit-logs': {
       get: {
-        tags: ['Admin'], summary: 'Audit log (terbaru dulu)', security: admin,
+        tags: ['Admin'], summary: 'Log aktivitas: siapa, dari mana (IP, browser, platform), aksi apa, data apa yang berubah', security: admin,
         parameters: [
           { name: 'page', in: 'query', schema: int({ minimum: 1, default: 1 }) },
-          { name: 'pageSize', in: 'query', schema: int({ minimum: 1, maximum: 100, default: 25 }) },
-          { name: 'actor', in: 'query', schema: str({ maxLength: 80 }), description: 'Cari sebagian teks aktor' },
+          { name: 'pageSize', in: 'query', schema: int({ minimum: 1, maximum: 100, default: 10 }) },
+          { name: 'search', in: 'query', schema: str({ maxLength: 120 }), description: 'Cari di aktor (termasuk email/nama akun), aksi, IP, browser, platform, URL, model' },
+          { name: 'event', in: 'query', schema: str({ enum: ['LOGIN', 'LOGIN_FAILED', 'LOGOUT', 'CREATED', 'UPDATED', 'DELETED', 'EXPORTED', 'IMPORTED', 'VIEWED', 'ERROR'] }) },
+          { name: 'actorType', in: 'query', schema: str({ enum: ['admin', 'staff', 'family', 'donor', 'guest'] }) },
+          { name: 'from', in: 'query', schema: str({ format: 'date' }), description: 'Tanggal WIB, inklusif' },
+          { name: 'to', in: 'query', schema: str({ format: 'date' }), description: 'Tanggal WIB, inklusif' },
+          { name: 'sort', in: 'query', schema: str({ enum: ['createdAt', 'event', 'actor', 'ip', 'browser', 'platform', 'subjectType'], default: 'createdAt' }) },
+          { name: 'dir', in: 'query', schema: str({ enum: ['asc', 'desc'], default: 'desc' }) },
         ],
         responses: { 200: ok(obj({ items: arr(ref('AuditLog')), total: int(), page: int(), pageSize: int() })), ...common },
+      },
+    },
+    '/admin/audit-logs/{id}': {
+      get: {
+        tags: ['Admin'], summary: 'Detail satu log, termasuk data sebelum (before) dan field yang berubah (after)', security: admin,
+        parameters: [{ name: 'id', in: 'path', required: true, schema: str({ format: 'uuid' }) }],
+        responses: { 200: ok(ref('AuditLog')), ...common },
       },
     },
     '/admin/export/{dataset}': {

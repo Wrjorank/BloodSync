@@ -9,6 +9,7 @@ import { env } from '../config/env';
 import { badRequest, forbidden, tooMany, unauthorized } from '../utils/AppError';
 import { sendOtpMessage } from './notification.service';
 import { enlistByPhone } from './population.service';
+import { auditNow } from './audit.service';
 
 const OTP_TTL_SEC = 300;
 const MAX_ATTEMPTS = 5;
@@ -18,6 +19,8 @@ const LOGIN_LOCK_SEC = 900;
 const hash = (code: string) => crypto.createHash('sha256').update(code).digest('hex');
 // compared against when the email is unknown, so both paths cost one bcrypt round and timing reveals nothing
 const DUMMY_HASH = bcrypt.hashSync(crypto.randomBytes(16).toString('hex'), 12);
+const staffActor = (u: { id: string; role: string }) => `${u.role === 'SUPER_ADMIN' ? 'admin' : 'staff'}:${u.id}`;
+const phoneActor = (purpose: OtpPurpose, phone: string) => `${purpose === 'DONOR' ? 'donor' : 'family'}:${phone}`;
 
 export const authService = {
   async staffLogin(rawEmail: string, password: string, ip: string) {
@@ -31,12 +34,14 @@ export const authService = {
     const passwordOk = await bcrypt.compare(password, user?.passwordHash ?? DUMMY_HASH);
     if (!user || !user.isActive || !passwordOk) {
       await kv.incr(failKey, LOGIN_LOCK_SEC);
+      const reason = !user ? 'unknown_email' : !user.isActive ? 'inactive' : 'wrong_password';
+      await auditNow(user ? staffActor(user) : `guest:${email}`, 'auth.login_failed', user?.id, { email, reason });
       throw unauthorized('Email atau kata sandi salah');
     }
     await kv.del(failKey);
     if (user.role === 'FASKES_STAFF' && (!user.faskes || !user.faskes.isActive)) throw unauthorized('Akun faskes belum aktif');
     await prisma.user.update({ where: { id: user.id }, data: { lastLoginAt: new Date() } });
-    await prisma.auditLog.create({ data: { actor: `staff:${user.id}`, action: 'auth.login' } });
+    await auditNow(staffActor(user), 'auth.login', user.id, { email: user.email, role: user.role });
     return {
       token: signToken({ kind: 'staff', sub: user.id, role: user.role, faskesId: user.faskesId, ver: user.tokenVersion }),
       user: { id: user.id, name: user.name, email: user.email, role: user.role },
@@ -68,7 +73,10 @@ export const authService = {
     }
     const entry = JSON.parse(raw) as { hash: string };
     const match = crypto.timingSafeEqual(Buffer.from(entry.hash), Buffer.from(hash(code)));
-    if (!match) throw badRequest('Kode OTP salah', 'OTP_INVALID');
+    if (!match) {
+      await auditNow(phoneActor(purpose, phone), 'auth.login_failed', undefined, { purpose, reason: 'wrong_otp' });
+      throw badRequest('Kode OTP salah', 'OTP_INVALID');
+    }
     await kv.del(key);
     await kv.del(attemptsKey);
 
@@ -77,9 +85,17 @@ export const authService = {
       const donor = (await prisma.donor.findUnique({ where: { phone } })) || (await enlistByPhone(phone));
       // a dummy carries a made-up number; whoever really owns it must not inherit the fake profile
       if (donor?.isSimulated && env.isProduction) throw forbidden('Nomor ini tidak dapat digunakan. Hubungi admin BloodSync.');
+      await auditNow(phoneActor(purpose, phone), 'auth.login', donor?.id, { purpose });
       if (donor) return { token: signToken({ kind: 'donor', sub: donor.id, phone, ver: donor.tokenVersion }), registered: true };
     }
+    if (purpose !== 'DONOR') await auditNow(phoneActor(purpose, phone), 'auth.login', undefined, { purpose });
     return { token: signToken({ kind: 'phone', sub: phone, purpose }), registered: false };
+  },
+
+  // staff and admin sessions are stateless jwts; this only records that the person signed out
+  async logout(a: AuthPayload) {
+    if (a.kind !== 'staff') return;
+    await auditNow(`${a.role === 'SUPER_ADMIN' ? 'admin' : 'staff'}:${a.sub}`, 'auth.logout', a.sub);
   },
 
   // lets a mobile app check a stored token on launch and learn which screens to open

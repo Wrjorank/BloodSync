@@ -9,6 +9,7 @@ import { connectRedis, disconnectRedis, redisStatus } from './config/redis';
 import routes from './routes';
 import pages from './routes/pages';
 import { authenticate } from './middlewares/auth';
+import { requestContext } from './middlewares/requestContext';
 import { errorHandler, notFoundHandler } from './middlewares/errorHandler';
 import { setupSocket } from './socket';
 import { startEngine, stopEngine } from './jobs/engine';
@@ -23,6 +24,7 @@ const io = new Server(httpServer, { cors: { origin: corsOrigin } });
 app.disable('x-powered-by');
 app.set('trust proxy', env.trustProxy);
 app.use(cors({ origin: corsOrigin, exposedHeaders: ['Content-Disposition', 'X-Export-Rows', 'X-Export-Truncated', 'X-Import-Rows'] }));
+app.use(requestContext);
 app.use(express.json({ limit: '100kb' }));
 app.use((_req, res, next) => {
   res.setHeader('X-Content-Type-Options', 'nosniff');

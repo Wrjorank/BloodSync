@@ -144,11 +144,20 @@ export const updateUserSchema = z.object({
   body: z.object({ ...userBody, password: z.union([z.literal(''), strongPassword]).optional() }),
 });
 
+const AUDIT_EVENTS = ['LOGIN', 'LOGIN_FAILED', 'LOGOUT', 'CREATED', 'UPDATED', 'DELETED', 'EXPORTED', 'IMPORTED', 'VIEWED', 'ERROR'] as const;
+const isoDay = z.string().regex(/^d{4}-d{2}-d{2}$/, 'Format tanggal YYYY-MM-DD');
+
 export const auditQuerySchema = z.object({
   query: z.object({
     page: z.coerce.number().int().min(1).default(1),
-    pageSize: z.coerce.number().int().min(1).max(100).default(25),
-    actor: z.string().max(80).optional(),
+    pageSize: z.coerce.number().int().min(1).max(100).default(10),
+    search: z.string().trim().max(120).optional(),
+    event: z.enum(AUDIT_EVENTS).optional(),
+    actorType: z.enum(['admin', 'staff', 'family', 'donor', 'guest']).optional(),
+    from: isoDay.optional(),
+    to: isoDay.optional(),
+    sort: z.enum(['createdAt', 'event', 'actor', 'ip', 'browser', 'platform', 'subjectType']).default('createdAt'),
+    dir: z.enum(['asc', 'desc']).default('desc'),
   }),
 });
 

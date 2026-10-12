@@ -1,12 +1,12 @@
 import { Request, Response } from 'express';
-import prisma from '../config/prisma';
+import { auditNow } from '../services/audit.service';
 import { staffFaskesId } from '../middlewares/auth';
 import { AdminDataset, ExportFile, ExportFilter, StaffDataset, exportService } from '../services/export.service';
 
 // exports carry patient and donor data, so every download is audited like opening a doctor's letter
 async function send(req: Request, res: Response, actor: string, dataset: string, file: ExportFile) {
   const { from, to, actor: actorFilter } = req.query as ExportFilter;
-  await prisma.auditLog.create({ data: { actor, action: `export.${dataset}`, meta: { rows: file.rows, truncated: file.truncated, from, to, actor: actorFilter } } });
+  await auditNow(actor, `export.${dataset}`, undefined, { rows: file.rows, truncated: file.truncated, from, to, actor: actorFilter, file: file.filename });
   res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
   res.setHeader('Content-Disposition', `attachment; filename="${file.filename}"`);
   res.setHeader('Cache-Control', 'private, no-store');
