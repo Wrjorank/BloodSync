@@ -100,6 +100,7 @@ document.addEventListener('DOMContentLoaded', () => {
         toast('Sesi berakhir, silakan masuk kembali.', 'error');
     });
     if (session.get('admin')) start();
+    else showLogin(true);
 });
 
 async function onLogin(e) {
@@ -127,7 +128,13 @@ function logout() {
     audit.seq++;
     document.querySelectorAll('dialog[open]').forEach(d => d.close());
     session.clear('admin');
-    document.getElementById('loginView').classList.remove('hidden');
+    showLogin(true);
+}
+
+function showLogin(show) {
+    document.getElementById('loginView').classList.toggle('hidden', !show);
+    // keep keyboard focus inside the overlay
+    document.querySelectorAll('body > aside, body > main').forEach(el => { el.inert = show; });
 }
 
 function showView(name) {
@@ -143,7 +150,7 @@ function showView(name) {
 }
 
 function start() {
-    document.getElementById('loginView').classList.add('hidden');
+    showLogin(false);
     document.getElementById('adminWho').textContent = session.get('admin')?.user.email || '';
     unsubscribe?.();
     // admin has no socket room; a poll keeps the numbers fresh
