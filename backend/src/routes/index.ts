@@ -26,6 +26,8 @@ router.get('/auth/me', auth.me);
 // ---------- webhooks (shared secret in the url) ----------
 // fonnte delivers every donor reply from one ip, so the cap must stay above a full dispatch wave
 router.post('/webhooks/whatsapp', express.urlencoded({ extended: false }), rateLimit('wa-webhook', 600, 60), webhook.whatsapp);
+// fonnte requires the url to accept GET too; with no body this only checks the secret
+router.get('/webhooks/whatsapp', rateLimit('wa-webhook', 600, 60), webhook.whatsapp);
 
 // ---------- public (no auth) ----------
 router.get('/public/meta', pub.meta);
