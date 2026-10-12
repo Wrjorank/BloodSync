@@ -6,7 +6,7 @@ import { faskesService } from '../services/faskes.service';
 import { requestService } from '../services/request.service';
 import { ticketService } from '../services/ticket.service';
 import { staffNotifications } from '../services/notification.service';
-import prisma from '../config/prisma';
+import { auditNow } from '../services/audit.service';
 import { ApiResponse } from '../utils/ApiResponse';
 import { notFound } from '../utils/AppError';
 
@@ -49,7 +49,7 @@ export const faskesController = {
     const letter = await requestService.letterFor(staffFaskesId(req), req.params.id);
     const file = letterAbsolutePath(letter.letterPath!);
     if (!fs.existsSync(file)) throw notFound('Berkas surat tidak ditemukan');
-    await prisma.auditLog.create({ data: { actor: `staff:${userId(req)}`, action: 'request.view_letter', ref: req.params.id } });
+    await auditNow(`staff:${userId(req)}`, 'request.view_letter', req.params.id, { file: letter.letterName });
     res.setHeader('Content-Type', letter.letterMime || 'application/octet-stream');
     res.setHeader('Content-Disposition', `inline; filename="surat"; filename*=UTF-8''${encodeURIComponent(letter.letterName || 'surat')}`);
     res.setHeader('Cache-Control', 'private, no-store');

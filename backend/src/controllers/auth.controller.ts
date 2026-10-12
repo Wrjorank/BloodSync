@@ -24,4 +24,9 @@ export const authController = {
     if (!req.auth) throw unauthorized();
     return ApiResponse.success(res, await authService.me(req.auth));
   },
+
+  async logout(req: Request, res: Response) {
+    if (req.auth) await authService.logout(req.auth);
+    return ApiResponse.success(res, null, 'Berhasil keluar');
+  },
 };

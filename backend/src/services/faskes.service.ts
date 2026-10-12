@@ -51,7 +51,11 @@ export const faskesService = {
       await tx.stockMovement.create({
         data: { faskesId, component: input.component, bloodType: input.bloodType, quantity: input.delta, kind: input.delta > 0 ? 'IN' : 'OUT', note: input.note },
       });
-      await audit(tx, `staff:${userId}`, 'stock.adjust', `${input.component} ${input.bloodType}`, { delta: input.delta, note: input.note });
+      const quantity = Number(row.quantity);
+      await audit(tx, `staff:${userId}`, 'stock.adjust', `${input.component} ${input.bloodType}`, { delta: input.delta, note: input.note }, {
+        before: { component: input.component, bloodType: input.bloodType, quantity },
+        after: { component: input.component, bloodType: input.bloodType, quantity: quantity + input.delta },
+      });
       outbox.faskes.add(faskesId);
       return { quantity: Number(row.quantity) + input.delta };
     });

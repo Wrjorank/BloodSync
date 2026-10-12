@@ -398,7 +398,7 @@ export const importService = {
           const created = await tx.faskes.create({ data: { name: f.name, type: f.type, area: f.area, address: f.address || null, lat: f.lat, lng: f.lng } });
           await tx.stock.createMany({ data: components.flatMap(component => BLOOD_TYPES.map(bloodType => ({ faskesId: created.id, component, bloodType, quantity: 0 }))) });
         }
-        await audit(tx, `admin:${adminId}`, 'import.faskes', undefined, { rows: p.rows.length });
+        await audit(tx, `admin:${adminId}`, 'import.facilities', undefined, { rows: p.rows.length });
         return { imported: p.rows.length };
       });
     }
@@ -414,7 +414,7 @@ export const importService = {
     }
     await runInTx(async tx => {
       await tx.user.createMany({ data: accounts.map(a => ({ name: a.name, email: a.email, role: a.role, faskesId: a.faskesId, passwordHash: a.passwordHash })) });
-      await audit(tx, `admin:${adminId}`, 'import.akun', undefined, { rows: accounts.length });
+      await audit(tx, `admin:${adminId}`, 'import.accounts', undefined, { rows: accounts.length });
     });
     // the only copy of the initial passwords; never stored or logged
     const file = await writeXlsxFile([

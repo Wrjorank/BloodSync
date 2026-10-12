@@ -1,3 +1,4 @@
+import { auditLogService } from './audit.service';
 import writeXlsxFile, { SheetData } from 'write-excel-file/node';
 import prisma from '../config/prisma';
 import { env } from '../config/env';
@@ -190,15 +191,25 @@ export const exportService = {
   async admin(dataset: AdminDataset, f: ExportFilter): Promise<ExportFile> {
     switch (dataset) {
       case 'audit-log': {
-        const rows = await prisma.auditLog.findMany({
-          where: { createdAt: range(f), ...(f.actor ? { actor: { contains: f.actor } } : {}) }, orderBy: { createdAt: 'desc' }, take: MAX_ROWS + 1,
-        });
-        return file('audit-log', 'Audit Log', rows, [
+        // the search box of the activity log page travels as `actor` and filters the same way
+        const where = await auditLogService.whereOf({ search: f.actor || undefined });
+        const rows = await prisma.auditLog.findMany({ where: { AND: [where, { createdAt: range(f) }] }, orderBy: { createdAt: 'desc' }, take: MAX_ROWS + 1 });
+        const json = (v: unknown) => (v === null || v === undefined ? null : JSON.stringify(v));
+        return file('audit-log', 'Log Aktivitas', rows, [
           { header: 'Waktu (WIB)', width: 18, value: r => r.createdAt },
+          { header: 'Event', width: 14, value: r => r.event },
           { header: 'Aktor', width: 44, value: r => r.actor },
-          { header: 'Aksi', width: 22, value: r => r.action },
+          { header: 'Aksi', width: 24, value: r => r.action },
+          { header: 'Model', width: 16, value: r => r.subjectType },
           { header: 'Referensi', width: 38, value: r => r.ref },
-          { header: 'Detail', width: 48, value: r => (r.meta === null ? null : JSON.stringify(r.meta)) },
+          { header: 'IP', width: 16, value: r => r.ip },
+          { header: 'Browser', width: 18, value: r => r.browser },
+          { header: 'Platform', width: 12, value: r => r.platform },
+          { header: 'Perangkat', width: 10, value: r => r.device },
+          { header: 'Request', width: 40, value: r => (r.method ? `${r.method} ${r.url}` : null) },
+          { header: 'Detail', width: 40, value: r => json(r.meta) },
+          { header: 'Sebelum', width: 40, value: r => json(r.before) },
+          { header: 'Sesudah', width: 40, value: r => json(r.after) },
         ]);
       }
 

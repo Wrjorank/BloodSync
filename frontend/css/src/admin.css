@@ -20,3 +20,9 @@
 .page-size { @apply border border-slate-200 rounded-lg pl-2 pr-7 py-1.5 text-xs font-medium text-slate-700 bg-white outline-none focus:border-brand-500; }
 .pg-btn { @apply min-w-[32px] h-8 px-2 rounded-lg border border-slate-200 text-xs font-medium text-slate-600 hover:bg-slate-50 transition-colors disabled:opacity-40 disabled:hover:bg-transparent; }
 dialog::backdrop { background: rgb(15 23 42 / 0.5); }
+.icon-btn { @apply w-10 h-10 inline-flex items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-600 hover:bg-slate-100 transition-colors; }
+.icon-btn-primary { @apply bg-brand-600 text-white border-brand-600 hover:bg-brand-700; }
+.sort-btn { @apply inline-flex items-center gap-1.5 uppercase tracking-wider font-bold hover:text-slate-700; }
+.audit-tab { @apply px-4 py-2.5 text-sm font-semibold text-slate-500 border-b-2 border-transparent hover:text-slate-800; }
+.audit-tab[aria-selected="true"] { @apply text-brand-600 border-brand-600; }
+.badge { @apply inline-block px-2 py-0.5 rounded text-[11px] font-bold tracking-wide whitespace-nowrap; }

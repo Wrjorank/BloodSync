@@ -16,8 +16,8 @@ const ui = { checks: {}, rejecting: {}, dispatch: {}, busy: false, modal: null, 
 
 document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('loginForm').addEventListener('submit', onLogin);
-    document.getElementById('btnLogout').addEventListener('click', logout);
-    document.getElementById('btnLogoutMobile').addEventListener('click', logout);
+    document.getElementById('btnLogout').addEventListener('click', signOut);
+    document.getElementById('btnLogoutMobile').addEventListener('click', signOut);
 
     document.querySelectorAll('[data-view]').forEach(b => b.addEventListener('click', () => showView(b.dataset.view, true)));
     document.querySelectorAll('[data-open]').forEach(b => b.addEventListener('click', () => document.getElementById(b.dataset.open).showModal()));
@@ -122,6 +122,12 @@ async function onLogin(e) {
             err.classList.remove('hidden');
         }
     });
+}
+
+// the button: the server records the sign-out first, then the session is dropped
+async function signOut() {
+    await store.logout('staff');
+    logout();
 }
 
 function logout() {

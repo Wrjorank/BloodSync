@@ -348,17 +348,31 @@ model RequestEvent {
   @@map("request_events")
 }
 
+// one row per thing that happened: who (actor), what (event + action), on which record (subjectType + ref),
+// from where (ip, browser, platform, request) and what changed (before = original row, after = changed fields only)
 model AuditLog {
-  id        String   @id @default(uuid())
-  actor     String
-  action    String
-  ref       String?
-  meta      Json?
-  ip        String?
-  createdAt DateTime @default(now())
+  id          String   @id @default(uuid())
+  actor       String
+  // LOGIN, LOGIN_FAILED, LOGOUT, CREATED, UPDATED, DELETED, EXPORTED, IMPORTED, VIEWED, ERROR
+  event       String   @default("UPDATED") @db.VarChar(24)
+  action      String
+  subjectType String?  @db.VarChar(32)
+  ref         String?
+  meta        Json?
+  before      Json?
+  after       Json?
+  ip          String?  @db.VarChar(64)
+  userAgent   String?
+  browser     String?  @db.VarChar(64)
+  platform    String?  @db.VarChar(64)
+  device      String?  @db.VarChar(16)
+  method      String?  @db.VarChar(8)
+  url         String?
+  createdAt   DateTime @default(now())
 
   @@index([createdAt])
   @@index([actor])
+  @@index([event, createdAt])
   @@map("audit_logs")
 }
 
