@@ -10,8 +10,8 @@ import { readSheet } from '../utils/xlsx';
 import { runInTx } from './dispatch.service';
 import { audit } from './audit.service';
 
-export const STAFF_IMPORTS = ['stok'] as const;
-export const ADMIN_IMPORTS = ['faskes', 'akun'] as const;
+export const STAFF_IMPORTS = ['stock'] as const;
+export const ADMIN_IMPORTS = ['facilities', 'accounts'] as const;
 export type StaffImport = (typeof STAFF_IMPORTS)[number];
 export type AdminImport = (typeof ADMIN_IMPORTS)[number];
 
@@ -295,7 +295,7 @@ export const importService = {
   },
 
   async adminTemplate(dataset: AdminImport) {
-    if (dataset === 'faskes') {
+    if (dataset === 'facilities') {
       return template(FASKES_COLUMNS, [], [{
         sheet: 'Petunjuk', columns: [{ width: 14 }, { width: 8 }, { width: 80 }],
         data: instructions(FASKES_COLUMNS, FASKES_MAX, [
@@ -376,7 +376,7 @@ export const importService = {
 
   // ---------- admin ----------
   async previewAdmin(dataset: AdminImport, buffer: Buffer): Promise<ImportPreview> {
-    if (dataset === 'faskes') {
+    if (dataset === 'facilities') {
       const p = await parseFaskes(buffer);
       return preview(dataset, p, `${p.rows.length} faskes baru akan ditambahkan.`, p.rows.map(({ value: f }) => ({
         Nama: f.name, Jenis: f.type, Wilayah: f.area, Latitude: f.lat, Longitude: f.lng,
@@ -389,7 +389,7 @@ export const importService = {
   },
 
   async commitAdmin(adminId: string, dataset: AdminImport, buffer: Buffer) {
-    if (dataset === 'faskes') {
+    if (dataset === 'facilities') {
       const p = await parseFaskes(buffer);
       assertClean(p);
       const components = Object.keys(COMPONENT_LABEL) as Component[];

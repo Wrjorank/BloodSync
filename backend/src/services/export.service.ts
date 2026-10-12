@@ -6,8 +6,8 @@ import {
 } from '../constants/blood';
 import { maskName, maskPhone } from '../utils/helpers';
 
-export const STAFF_DATASETS = ['stok', 'mutasi-stok', 'permintaan', 'tiket-donor', 'mutasi-antarfaskes'] as const;
-export const ADMIN_DATASETS = ['audit', 'faskes', 'akun', 'permintaan', 'pendonor'] as const;
+export const STAFF_DATASETS = ['stock', 'stock-movements', 'requests', 'donor-tickets', 'facility-transfers'] as const;
+export const ADMIN_DATASETS = ['audit-log', 'facilities', 'accounts', 'requests', 'donors'] as const;
 export type StaffDataset = (typeof STAFF_DATASETS)[number];
 export type AdminDataset = (typeof ADMIN_DATASETS)[number];
 
@@ -86,7 +86,7 @@ export const exportService = {
     const name = `${slug(faskes.name)}_${dataset}`;
 
     switch (dataset) {
-      case 'stok': {
+      case 'stock': {
         // same order as the stock matrix on screen: PRC, TC, WB x A+ .. O-
         const order = (r: { component: string; bloodType: string }) =>
           Object.keys(COMPONENT_LABEL).indexOf(r.component) * 10 + BLOOD_TYPES.indexOf(r.bloodType as BloodType);
@@ -100,7 +100,7 @@ export const exportService = {
         ]);
       }
 
-      case 'mutasi-stok': {
+      case 'stock-movements': {
         const rows = await prisma.stockMovement.findMany({
           where: { faskesId, createdAt: range(f) }, orderBy: { createdAt: 'desc' }, take: MAX_ROWS + 1,
           include: { request: { select: { code: true } } },
@@ -116,7 +116,7 @@ export const exportService = {
         ]);
       }
 
-      case 'permintaan': {
+      case 'requests': {
         const rows = await prisma.bloodRequest.findMany({ where: { faskesId, createdAt: range(f) }, orderBy: { createdAt: 'desc' }, take: MAX_ROWS + 1 });
         return file(name, 'Permintaan', rows, [
           { header: 'Kode', width: 12, value: r => r.code },
@@ -140,7 +140,7 @@ export const exportService = {
         ]);
       }
 
-      case 'tiket-donor': {
+      case 'donor-tickets': {
         const rows = await prisma.donorTicket.findMany({
           where: { request: { faskesId }, invitedAt: range(f) }, orderBy: { invitedAt: 'desc' }, take: MAX_ROWS + 1,
           include: { donor: { select: { name: true, bloodType: true } }, request: { select: { code: true } } },
@@ -165,7 +165,7 @@ export const exportService = {
         ]);
       }
 
-      case 'mutasi-antarfaskes': {
+      case 'facility-transfers': {
         const rows = await prisma.stockTransfer.findMany({
           where: { OR: [{ fromFaskesId: faskesId }, { toFaskesId: faskesId }], createdAt: range(f) }, orderBy: { createdAt: 'desc' }, take: MAX_ROWS + 1,
           include: { fromFaskes: { select: { name: true } }, toFaskes: { select: { name: true } }, request: { select: { code: true } } },
@@ -189,7 +189,7 @@ export const exportService = {
   // ---------- super admin: system-wide, without patient identities ----------
   async admin(dataset: AdminDataset, f: ExportFilter): Promise<ExportFile> {
     switch (dataset) {
-      case 'audit': {
+      case 'audit-log': {
         const rows = await prisma.auditLog.findMany({
           where: { createdAt: range(f), ...(f.actor ? { actor: { contains: f.actor } } : {}) }, orderBy: { createdAt: 'desc' }, take: MAX_ROWS + 1,
         });
@@ -202,9 +202,9 @@ export const exportService = {
         ]);
       }
 
-      case 'faskes': {
+      case 'facilities': {
         const rows = await prisma.faskes.findMany({ orderBy: { name: 'asc' }, include: { _count: { select: { users: true, requests: true } } } });
-        return file('faskes', 'Faskes', rows, [
+        return file('facilities', 'Faskes', rows, [
           { header: 'ID', width: 38, value: r => r.id },
           { header: 'Nama', width: 28, value: r => r.name },
           { header: 'Tipe', width: 8, value: r => r.type },
@@ -219,13 +219,13 @@ export const exportService = {
         ]);
       }
 
-      case 'akun': {
+      case 'accounts': {
         // never select passwordHash
         const rows = await prisma.user.findMany({
           orderBy: { createdAt: 'desc' },
           select: { name: true, email: true, role: true, isActive: true, lastLoginAt: true, createdAt: true, faskes: { select: { name: true } } },
         });
-        return file('akun-petugas', 'Akun', rows, [
+        return file('accounts', 'Akun', rows, [
           { header: 'Nama', width: 28, value: r => r.name },
           { header: 'Email', width: 30, value: r => r.email },
           { header: 'Peran', width: 16, value: r => (r.role === 'SUPER_ADMIN' ? 'Super admin' : 'Petugas faskes') },
@@ -236,11 +236,11 @@ export const exportService = {
         ]);
       }
 
-      case 'permintaan': {
+      case 'requests': {
         const rows = await prisma.bloodRequest.findMany({
           where: { createdAt: range(f) }, orderBy: { createdAt: 'desc' }, take: MAX_ROWS + 1, include: { faskes: { select: { name: true } } },
         });
-        return file('permintaan-semua-faskes', 'Permintaan', rows, [
+        return file('requests-all-facilities', 'Permintaan', rows, [
           { header: 'Kode', width: 12, value: r => r.code },
           { header: 'Faskes', width: 28, value: r => r.faskes.name },
           { header: 'Dibuat (WIB)', width: 18, value: r => r.createdAt },
@@ -255,12 +255,12 @@ export const exportService = {
         ]);
       }
 
-      case 'pendonor': {
+      case 'donors': {
         const rows = await prisma.donor.findMany({
           where: env.isProduction ? { isSimulated: false } : {}, orderBy: { createdAt: 'desc' }, take: MAX_ROWS + 1,
           include: { _count: { select: { donations: true } } },
         });
-        return file('pendonor', 'Pendonor', rows, [
+        return file('donors', 'Pendonor', rows, [
           { header: 'Nama', width: 20, value: r => maskName(r.name) },
           { header: 'No. WA', width: 16, value: r => maskPhone(r.phone) },
           { header: 'Golongan', width: 10, value: r => r.bloodType },

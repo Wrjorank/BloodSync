@@ -105,7 +105,7 @@ model Notification {
   kind      String   @db.VarChar(24)
   title     String
   body      String
-  // dashboard view the item opens: stok, permintaan, pemindai, pendonor
+  // dashboard view the item opens: stock, requests, scanner, donors
   view      String   @db.VarChar(16)
   readBy    String[] @default([])
   createdAt DateTime @default(now())

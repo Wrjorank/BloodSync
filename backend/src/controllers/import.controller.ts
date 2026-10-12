@@ -46,7 +46,7 @@ export const importController = {
     if ('credentials' in result && result.credentials) {
       res.setHeader('X-Import-Rows', String(result.imported));
       const stamp = new Date(Date.now() + 7 * 3600000).toISOString().slice(0, 16).replace('T', '_').replace(':', '');
-      return sendXlsx(res, `bloodsync_akun-baru_${stamp}.xlsx`, result.credentials);
+      return sendXlsx(res, `bloodsync_new-accounts_${stamp}.xlsx`, result.credentials);
     }
     return ApiResponse.success(res, result, `Import selesai: ${result.imported} data ditambahkan`);
   },

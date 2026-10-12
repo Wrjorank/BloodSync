@@ -1,4 +1,4 @@
-// pasien.js — patient family: otp-verified request with doctor's letter + live tracker
+// patient.js — patient family: otp-verified request with doctor's letter + live tracker
 const pending = { phone: null };
 const seen = { status: null, fulfilled: null };
 let current = null;
@@ -280,7 +280,7 @@ function renderTracker(req) {
 }
 
 function publicUrl(req) {
-    return new URL(`/kartu?t=${req.publicToken}`, location.href).href;
+    return new URL(`/card?t=${req.publicToken}`, location.href).href;
 }
 
 function renderShare(req) {

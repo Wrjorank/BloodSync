@@ -4,10 +4,10 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Petugas Faskes - Dasbor Operasional</title>
-    <link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
+    <link rel="icon" href="/assets/favicon.svg" type="image/svg+xml">
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="vendor/fontawesome/css/all.min.css">
-    <link rel="stylesheet" href="css/faskes.css">
+    <link rel="stylesheet" href="/vendor/fontawesome/css/all.min.css">
+    <link rel="stylesheet" href="/css/facility.css">
 </head>
 <body class="bg-slate-50 text-slate-800 h-screen flex overflow-hidden antialiased">
 
@@ -47,14 +47,14 @@
         </div>
         <nav class="p-4 flex-grow space-y-1">
             <div class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3 mt-2">Menu Utama</div>
-            <button data-view="stok" class="nav-link"><i class="fa-solid fa-border-all w-5"></i> Inventaris Darah</button>
-            <button data-view="permintaan" class="nav-link">
+            <button data-view="stock" class="nav-link"><i class="fa-solid fa-border-all w-5"></i> Inventaris Darah</button>
+            <button data-view="requests" class="nav-link">
                 <i class="fa-solid fa-file-waveform w-5"></i> Permintaan
                 <span id="navPending" class="hidden ml-auto bg-brand-600 text-white text-[11px] font-bold px-2 py-0.5 rounded-full"></span>
             </button>
-            <button data-view="pemindai" class="nav-link"><i class="fa-solid fa-qrcode w-5"></i> Pemindai Tiket</button>
-            <button data-view="pendonor" class="nav-link"><i class="fa-solid fa-users w-5"></i> Data Pendonor</button>
-            <button data-view="notifikasi" class="nav-link">
+            <button data-view="scanner" class="nav-link"><i class="fa-solid fa-qrcode w-5"></i> Pemindai Tiket</button>
+            <button data-view="donors" class="nav-link"><i class="fa-solid fa-users w-5"></i> Data Pendonor</button>
+            <button data-view="notifications" class="nav-link">
                 <i class="fa-solid fa-bell w-5"></i> Notifikasi
                 <span id="navUnread" class="hidden ml-auto bg-brand-600 text-white text-[11px] font-bold px-2 py-0.5 rounded-full"></span>
             </button>
@@ -70,7 +70,7 @@
         <header class="bg-gradient-to-r from-slate-900 via-slate-800 to-slate-700 border-b border-slate-700 shrink-0">
             <div class="h-16 flex items-center justify-between px-4 sm:px-6">
                 <div class="flex items-center gap-3 min-w-0">
-                    <button id="btnBack" data-view="stok" class="hidden w-9 h-9 shrink-0 rounded-lg border border-slate-600 text-slate-300 hover:bg-white/10 hover:text-white transition-colors" title="Kembali ke Inventaris" aria-label="Kembali"><i class="fa-solid fa-arrow-left"></i></button>
+                    <button id="btnBack" data-view="stock" class="hidden w-9 h-9 shrink-0 rounded-lg border border-slate-600 text-slate-300 hover:bg-white/10 hover:text-white transition-colors" title="Kembali ke Inventaris" aria-label="Kembali"><i class="fa-solid fa-arrow-left"></i></button>
                     <div class="min-w-0">
                         <h1 id="faskesName" class="font-bold text-lg text-white leading-tight truncate">Dasbor Operasional</h1>
                         <p id="faskesMeta" class="text-xs text-slate-300 truncate"></p>
@@ -101,11 +101,11 @@
                 </div>
             </div>
             <nav class="md:hidden flex gap-1 overflow-x-auto px-4 pb-3">
-                <button data-view="stok" class="tab-link">Inventaris</button>
-                <button data-view="permintaan" class="tab-link">Permintaan</button>
-                <button data-view="pemindai" class="tab-link">Pemindai</button>
-                <button data-view="pendonor" class="tab-link">Pendonor</button>
-                <button data-view="notifikasi" class="tab-link">Notifikasi</button>
+                <button data-view="stock" class="tab-link">Inventaris</button>
+                <button data-view="requests" class="tab-link">Permintaan</button>
+                <button data-view="scanner" class="tab-link">Pemindai</button>
+                <button data-view="donors" class="tab-link">Pendonor</button>
+                <button data-view="notifications" class="tab-link">Notifikasi</button>
             </nav>
         </header>
 
@@ -113,7 +113,7 @@
             <div class="w-full p-4 sm:p-6">
 
                 <!-- inventaris -->
-                <section data-panel="stok" class="space-y-5">
+                <section data-panel="stock" class="space-y-5">
                     <div class="flex flex-col sm:flex-row sm:items-end justify-between gap-3">
                         <div>
                             <h2 class="font-bold text-xl text-slate-900">Inventaris Darah</h2>
@@ -145,7 +145,7 @@
                 </section>
 
                 <!-- permintaan -->
-                <section data-panel="permintaan" class="hidden space-y-5">
+                <section data-panel="requests" class="hidden space-y-5">
                     <div>
                         <h2 class="font-bold text-xl text-slate-900">Permintaan Darurat</h2>
                         <p class="text-sm text-slate-500">Verifikasi surat, penuhi dari stok, atau panggil pendonor terdekat.</p>
@@ -171,7 +171,7 @@
                 </section>
 
                 <!-- pemindai -->
-                <section data-panel="pemindai" class="hidden space-y-5">
+                <section data-panel="scanner" class="hidden space-y-5">
                     <div>
                         <h2 class="font-bold text-xl text-slate-900">Pemindai Tiket</h2>
                         <p class="text-sm text-slate-500">Pindai QR tiket saat pendonor tiba untuk memulai skrining.</p>
@@ -205,7 +205,7 @@
                 </section>
 
                 <!-- pendonor -->
-                <section data-panel="pendonor" class="hidden space-y-5">
+                <section data-panel="donors" class="hidden space-y-5">
                     <div class="flex flex-col sm:flex-row sm:items-end justify-between gap-2">
                         <div>
                             <h2 class="font-bold text-xl text-slate-900">Data Pendonor</h2>
@@ -217,9 +217,9 @@
                 </section>
 
                 <!-- notifikasi -->
-                <section data-panel="notifikasi" class="hidden space-y-4">
+                <section data-panel="notifications" class="hidden space-y-4">
                     <nav class="text-xs font-medium text-slate-500 flex items-center gap-2" aria-label="Breadcrumb">
-                        <button data-view="stok" class="text-brand-600 hover:underline">Beranda</button>
+                        <button data-view="stock" class="text-brand-600 hover:underline">Beranda</button>
                         <i class="fa-solid fa-chevron-right text-[10px]"></i>
                         <span class="text-slate-700">Notifikasi</span>
                     </nav>
@@ -288,11 +288,11 @@
             </div>
             <label class="block"><span class="lbl">Jenis data</span>
                 <select name="dataset" class="inp">
-                    <option value="stok" data-hint="Posisi stok saat ini per komponen & golongan darah.">Stok darah saat ini</option>
-                    <option value="mutasi-stok" data-range="1" data-hint="Riwayat stok masuk, keluar, dan alokasi ke permintaan.">Riwayat mutasi stok</option>
-                    <option value="permintaan" data-range="1" data-hint="Permintaan darah ke faskes ini, termasuk nama pasien & nomor rekam medis.">Permintaan darah</option>
-                    <option value="tiket-donor" data-range="1" data-hint="Undangan, kedatangan, hasil skrining, dan pengambilan darah pendonor.">Tiket & skrining pendonor</option>
-                    <option value="mutasi-antarfaskes" data-range="1" data-hint="Permintaan mutasi stok masuk dan keluar dengan faskes lain.">Mutasi antarfaskes</option>
+                    <option value="stock" data-hint="Posisi stok saat ini per komponen & golongan darah.">Stok darah saat ini</option>
+                    <option value="stock-movements" data-range="1" data-hint="Riwayat stok masuk, keluar, dan alokasi ke permintaan.">Riwayat mutasi stok</option>
+                    <option value="requests" data-range="1" data-hint="Permintaan darah ke faskes ini, termasuk nama pasien & nomor rekam medis.">Permintaan darah</option>
+                    <option value="donor-tickets" data-range="1" data-hint="Undangan, kedatangan, hasil skrining, dan pengambilan darah pendonor.">Tiket & skrining pendonor</option>
+                    <option value="facility-transfers" data-range="1" data-hint="Permintaan mutasi stok masuk dan keluar dengan faskes lain.">Mutasi antarfaskes</option>
                 </select>
             </label>
             <p id="exportHint" class="text-xs text-slate-500 -mt-2"></p>
@@ -321,7 +321,7 @@
             </div>
             <label class="block"><span class="lbl">Jenis data</span>
                 <select name="dataset" class="inp">
-                    <option value="stok" data-hint="Stock opname: template berisi stok saat ini, cukup ubah kolom Jumlah sesuai hitungan fisik. Selisihnya dicatat otomatis sebagai mutasi stok.">Stok darah (stock opname)</option>
+                    <option value="stock" data-hint="Stock opname: template berisi stok saat ini, cukup ubah kolom Jumlah sesuai hitungan fisik. Selisihnya dicatat otomatis sebagai mutasi stok.">Stok darah (stock opname)</option>
                 </select>
             </label>
             <p id="importHint" class="text-xs text-slate-500 -mt-2"></p>
@@ -342,8 +342,8 @@
         <div id="screeningBody" class="bg-white rounded-3xl w-full max-w-md p-6 shadow-2xl"></div>
     </div>
 
-    <script src="js/store.js"></script>
-    <script src="js/ui.js"></script>
-    <script src="js/pages/faskes.js"></script>
+    <script src="/js/store.js"></script>
+    <script src="/js/ui.js"></script>
+    <script src="/js/pages/facility.js"></script>
 </body>
 </html>

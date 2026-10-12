@@ -414,7 +414,7 @@ function setupImport({ template, upload, onDone = () => undefined }) {
         try {
             const p = await upload(select.value, file, false);
             if (seq !== check) return;
-            const nothing = !p.valid || (select.value === 'stok' && !p.preview.length);
+            const nothing = !p.valid || (select.value === 'stock' && !p.preview.length);
             // columns come from the server as-is, in the order they first appear
             const head = [...new Set(p.preview.flatMap(r => Object.keys(r)))];
             show(p.issues.length
@@ -456,6 +456,29 @@ function setupImport({ template, upload, onDone = () => undefined }) {
             else commitBtn.disabled = false;
         }
     });
+}
+
+// dashboards keep the open view in the path: /facility/stock, /secretgate19/accounts.
+// the base is read from the url, so the admin slug never has to appear in public code.
+// legacy maps the old #hash views so bookmarks from before the change still land on the right view
+function viewRouter(views, fallback, legacy = {}) {
+    const base = '/' + location.pathname.split('/')[1];
+    return {
+        current() {
+            const name = location.pathname.split('/')[2] || legacy[location.hash.slice(1)];
+            return views.includes(name) ? name : fallback;
+        },
+        // push for user navigation so back/forward work, replace when only normalising the url
+        go(name, push) {
+            const url = `${base}/${name}`;
+            if (location.pathname === url && !location.hash) return;
+            history[push ? 'pushState' : 'replaceState'](null, '', url);
+        },
+        // the login screen shows the bare page url
+        reset() {
+            if (location.pathname !== base || location.hash) history.replaceState(null, '', base);
+        }
+    };
 }
 
 // hide the header while scrolling down, bring it back on any scroll up.
