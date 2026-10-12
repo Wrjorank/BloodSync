@@ -103,6 +103,12 @@ export const env = {
   uploadDir: path.resolve(process.env.UPLOAD_DIR || 'uploads'),
   publicAppUrl: (process.env.PUBLIC_APP_URL || `http://localhost:${process.env.APP_PORT || process.env.PORT || 5000}`).replace(/\/$/, ''),
   engineIntervalMs: Number(process.env.ENGINE_INTERVAL_MS || 5000),
+  // how long the cleanup job keeps rows (days); medical records are never deleted
+  retention: {
+    auditDays: Number(process.env.AUDIT_RETENTION_DAYS || 180),
+    notificationDays: Number(process.env.NOTIFICATION_RETENTION_DAYS || 90),
+    pushTokenDays: Number(process.env.PUSH_TOKEN_RETENTION_DAYS || 90),
+  },
   enableDemoRoutes: !isProduction && process.env.ENABLE_DEMO_ROUTES !== 'false',
   // swagger ui at /docs; on by default outside production, opt-in there
   enableApiDocs: process.env.ENABLE_API_DOCS ? process.env.ENABLE_API_DOCS === 'true' : !isProduction,

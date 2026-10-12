@@ -14,6 +14,7 @@ import { requestContext } from './middlewares/requestContext';
 import { errorHandler, notFoundHandler } from './middlewares/errorHandler';
 import { setupSocket } from './socket';
 import { startEngine, stopEngine } from './jobs/engine';
+import { startCleanup, stopCleanup } from './jobs/cleanup';
 import swaggerUi from 'swagger-ui-express';
 import { openApiSpec } from './docs/openapi';
 
@@ -81,6 +82,7 @@ async function start() {
   await prisma.$connect();
   httpServer.listen(env.port, () => console.log(`[server] BloodSync API berjalan di http://localhost:${env.port}`));
   startEngine();
+  startCleanup();
 }
 
 start().catch(err => {
@@ -91,6 +93,7 @@ start().catch(err => {
 async function shutdown() {
   console.log('\n[server] mematikan server...');
   stopEngine();
+  stopCleanup();
   io.close();
   httpServer.close(async () => {
     await prisma.$disconnect();
