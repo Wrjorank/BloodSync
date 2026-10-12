@@ -145,7 +145,6 @@ function showView(name, push = false) {
     document.querySelector('main > header')?.nextElementSibling?.scrollTo(0, 0);
     document.querySelectorAll('[data-panel]').forEach(p => p.classList.toggle('hidden', p.dataset.panel !== name));
     document.querySelectorAll('[data-view]').forEach(b => b.classList.toggle('active', b.dataset.view === name));
-    document.getElementById('btnBack').classList.toggle('hidden', name === 'overview');
     document.getElementById('viewTitle').textContent = VIEWS[name][0];
     document.getElementById('viewDesc').textContent = VIEWS[name][1];
     // the login screen keeps a clean url; the view only lands in the path once signed in
