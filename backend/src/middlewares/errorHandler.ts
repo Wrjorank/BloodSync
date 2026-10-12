@@ -3,7 +3,6 @@ import { Request, Response, NextFunction } from 'express';
 import { Prisma } from '@prisma/client';
 import { MulterError } from 'multer';
 import { AppError } from '../utils/AppError';
-import { env } from '../config/env';
 
 export const notFoundHandler = (req: Request, res: Response) => {
   res.status(404).json({ success: false, error: { code: 'NOT_FOUND', message: `Endpoint ${req.method} ${req.path} tidak ada` } });
@@ -29,7 +28,8 @@ export const errorHandler = (err: unknown, req: Request, res: Response, _next: N
     error = new AppError(400, 'Body JSON tidak valid', 'INVALID_JSON');
   } else {
     console.error('[error]', err);
-    error = new AppError(500, env.isProduction ? 'Terjadi kesalahan pada server' : String((err as Error)?.message || err), 'INTERNAL');
+    // full detail stays in the server log; raw messages can carry prisma internals and file paths
+    error = new AppError(500, 'Terjadi kesalahan pada server', 'INTERNAL');
   }
 
   res.status(error.statusCode).json({

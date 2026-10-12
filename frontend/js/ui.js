@@ -28,14 +28,16 @@ function pill(text, tone = 'slate') {
     return `<span class="${TONES[tone]} px-2.5 py-1 rounded-md text-xs font-bold whitespace-nowrap">${esc(text)}</span>`;
 }
 
-const fmtTime = (ts) => new Date(ts).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
-const fmtDate = (ts) => new Date(ts).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' });
+// pinned to WIB so the UI matches WhatsApp messages and exports regardless of the browser's zone
+const TZ = 'Asia/Jakarta';
+const fmtTime = (ts) => new Date(ts).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', timeZone: TZ }) + ' WIB';
+const fmtDate = (ts) => new Date(ts).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric', timeZone: TZ });
 const fmtKm = (km) => km.toFixed(1).replace('.', ',') + ' km';
 
 function fmtDeadline(ts) {
     const d = new Date(ts);
-    const sameDay = d.toDateString() === new Date().toDateString();
-    return sameDay ? fmtTime(d) : d.toLocaleString('id-ID', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+    const sameDay = fmtDate(d) === fmtDate(Date.now());
+    return sameDay ? fmtTime(d) : d.toLocaleString('id-ID', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', timeZone: TZ }) + ' WIB';
 }
 
 function fmtDuration(ms) {
