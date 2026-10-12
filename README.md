@@ -93,7 +93,6 @@ Tombol **Import** dan **Export** ada di kanan atas dasbor faskes dan admin.
 backend/                    API (Express + Prisma + Redis + Socket.io), lihat backend/README.md
   prisma/                   schema, migrasi, seed
   src/                      config, routes, controllers, services, middlewares, validations
-mobile/                     aplikasi Flutter untuk pendonor (API yang sama), lihat mobile/README.md
 frontend/                   disajikan langsung oleh backend di http://localhost:5000
   *.html                    satu halaman per peran (lihat tabel di atas)
   css/src/                  sumber CSS per halaman (Tailwind + komponen .inp, .btn-*, dst.)
