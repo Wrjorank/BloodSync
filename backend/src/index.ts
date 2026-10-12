@@ -39,7 +39,8 @@ app.use((_req, res, next) => {
     "font-src 'self' https://fonts.gstatic.com",
     "img-src 'self' data: blob:",
     "media-src 'self' blob:",
-    "connect-src 'self'",
+    // firebase messaging fetches its push token from these two google endpoints
+    "connect-src 'self' https://firebaseinstallations.googleapis.com https://fcmregistrations.googleapis.com",
     "frame-ancestors 'none'",
     "object-src 'none'",
     "base-uri 'self'",

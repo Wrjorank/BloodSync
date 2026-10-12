@@ -1,4 +1,5 @@
 import { Request, Response } from 'express';
+import { pushService } from '../services/push.service';
 import { donorId, verifiedPhone } from '../middlewares/auth';
 import { donorService } from '../services/donor.service';
 import { ticketService } from '../services/ticket.service';
@@ -50,5 +51,15 @@ export const donorController = {
 
   async finishRecovery(req: Request, res: Response) {
     return ApiResponse.success(res, await donorService.finishRecovery(donorId(req)), 'Masa pemulihan disimulasikan selesai');
+  },
+
+  async addPushToken(req: Request, res: Response) {
+    await pushService.register(req.body.token, { donorId: donorId(req) }, req.get('user-agent'));
+    return ApiResponse.success(res, null, 'Notifikasi diaktifkan');
+  },
+
+  async removePushToken(req: Request, res: Response) {
+    await pushService.unregister(req.body.token, { donorId: donorId(req) });
+    return ApiResponse.success(res, null, 'Notifikasi dimatikan');
   },
 };

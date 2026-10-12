@@ -16,6 +16,8 @@ export const publicController = {
       screening: SCREENING,
       // tells local pages to show whatsapp messages on screen; always false in production
       devInbox: env.devInbox,
+      // public web config for firebase messaging; null while push is not configured
+      push: env.firebase?.web ?? null,
     });
   },
 

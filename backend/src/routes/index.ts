@@ -72,6 +72,8 @@ staff.post('/tickets/:id/collect', validate(s.idParamSchema), fk.collect);
 staff.post('/tickets/:id/no-show', validate(s.idParamSchema), fk.noShow);
 staff.get('/notifications', validate(s.notificationListSchema), fk.notifications);
 staff.post('/notifications/read-all', fk.readAllNotifications);
+staff.post('/push-tokens', rateLimit('push-token', 30, 600), validate(s.pushTokenSchema), fk.addPushToken);
+staff.delete('/push-tokens', validate(s.pushTokenSchema), fk.removePushToken);
 staff.post('/notifications/:id/read', validate(s.idParamSchema), fk.readNotification);
 staff.get('/export/:dataset', rateLimit('export', 30, 600), validate(s.staffExportSchema), exporter.staff);
 staff.get('/import/:dataset/template', validate(s.staffImportSchema), importer.staffTemplate);
@@ -91,6 +93,8 @@ dn.post('/logout', donor.logout);
 dn.post('/tickets/:id/respond', validate(s.respondSchema), donor.respond);
 dn.post('/tickets/:id/cancel', validate(s.idParamSchema), donor.cancel);
 dn.post('/tickets/:id/ack', validate(s.idParamSchema), donor.acknowledge);
+dn.post('/push-tokens', rateLimit('push-token', 30, 600), validate(s.pushTokenSchema), donor.addPushToken);
+dn.delete('/push-tokens', validate(s.pushTokenSchema), donor.removePushToken);
 if (env.enableDemoRoutes) dn.post('/demo/finish-recovery', donor.finishRecovery);
 router.use('/donors/me', dn);
 

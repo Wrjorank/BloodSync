@@ -19,6 +19,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     document.getElementById('btnDecline').addEventListener('click', () => respond(false));
     document.getElementById('mainArea').addEventListener('click', onMainClick);
     document.getElementById('btnGps').addEventListener('click', () => syncGps(false));
+    pushNotify.bind(document.querySelectorAll('[data-push-toggle]'), 'donor', { save: store.donor.addPushToken, remove: store.donor.removePushToken });
     // browsers only allow sound after a user gesture, so unlock the alarm on the first tap
     document.addEventListener('pointerdown', unlockAlarm, { once: true });
     document.getElementById('availability').addEventListener('click', async (e) => {
@@ -148,6 +149,8 @@ function start() {
     unsubscribe = subscribe('donor', load);
     load();
     syncGps(true);
+    // only a registered donor has an account the token can belong to
+    if (session.get('donor')?.donor) pushNotify.resume('donor', store.donor.addPushToken);
 }
 
 // ---------- gps ----------
@@ -229,7 +232,10 @@ async function logout() {
     loadSeq++; // drop dashboards still in flight
     gpsSynced = false;
     // revoke on the server first; a phone-only token (registration not finished) has nothing to revoke
-    if (session.get('donor')?.donor) await store.donor.logout().catch(() => undefined);
+    if (session.get('donor')?.donor) {
+        await pushNotify.detach('donor', store.donor.removePushToken);
+        await store.donor.logout().catch(() => undefined);
+    }
     session.clear('donor');
     dash = null;
     answered.clear();

@@ -54,6 +54,9 @@ export const dispatchSchema = z.object({
   }),
 });
 
+// fcm registration tokens are ~160 chars; the cap only keeps junk out
+export const pushTokenSchema = z.object({ body: z.object({ token: z.string().trim().min(20).max(4096) }) });
+
 export const scanSchema = z.object({ body: z.object({ code: z.string().trim().min(4).max(24) }) });
 
 export const screeningSchema = z.object({

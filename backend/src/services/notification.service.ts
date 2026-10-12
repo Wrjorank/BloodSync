@@ -5,6 +5,7 @@ import { COMPONENT_LABEL } from '../constants/blood';
 import { maskPhone } from '../utils/helpers';
 import { env } from '../config/env';
 import { AppError } from '../utils/AppError';
+import { pushService } from './push.service';
 
 // changes collected inside a transaction and broadcast only after it commits
 export class Outbox {
@@ -14,6 +15,8 @@ export class Outbox {
   invites = new Set<string>();
   // request id -> milestone the family should hear about on whatsapp
   familyNotices = new Map<string, 'APPROVED' | 'FULFILLED'>();
+  // staff inbox items that also go out as a push to the faskes' browsers once the transaction commits
+  staffPush: { faskesId: string; title: string; body: string; view: string }[] = [];
 }
 
 export type StaffNoticeKind =
@@ -27,6 +30,7 @@ export async function notifyStaff(
   n: { kind: StaffNoticeKind; title: string; body: string; view: 'stock' | 'requests' | 'scanner' | 'donors' },
 ) {
   await tx.notification.create({ data: { faskesId, ...n } });
+  outbox.staffPush.push({ faskesId, title: n.title, body: n.body, view: n.view });
   outbox.faskes.add(faskesId);
 }
 
@@ -73,10 +77,11 @@ function toDevInbox(phone: string, text: string, kind: 'otp' | 'pesan') {
   io?.to(rooms.devInbox).emit('dev:whatsapp', { to: phone, text, kind, at: new Date().toISOString() });
 }
 
-// outbound channel adapters; swap the push log line for fcm in production
+// outbound channel adapters
 const channels = {
-  async push(donorId: string, title: string, body: string) {
-    console.log(`[push] donor=${donorId} ${title} — ${body}`);
+  async push(donorId: string, title: string, body: string, tag?: string) {
+    if (!pushService.enabled()) return console.log(`[push] (firebase belum diatur) donor=${donorId} ${title}`);
+    await pushService.toDonor(donorId, { title, body, path: '/donor', tag });
   },
   async whatsapp(phone: string, text: string) {
     // message bodies carry patient names; production logs keep only the masked recipient
@@ -175,6 +180,9 @@ export async function flush(outbox: Outbox) {
   await step('kabar keluarga', async () => { if (outbox.familyNotices.size) await notifyFamilies(outbox.familyNotices); });
   await step('event faskes', () => { for (const id of outbox.faskes) io?.to(rooms.faskes(id)).emit('faskes:updated', { id }); });
   await step('event pendonor', () => { for (const id of outbox.donors) io?.to(rooms.donor(id)).emit('donor:updated', { id }); });
+  await step('push petugas', async () => {
+    for (const n of outbox.staffPush) await pushService.toFaskes(n.faskesId, { title: n.title, body: n.body, path: `/facility/${n.view}` });
+  });
 
   await step('undangan', async () => {
     if (outbox.invites.size) {
@@ -188,7 +196,7 @@ export async function flush(outbox: Outbox) {
         // one failed donor must not stop the rest of the wave
         await step(`undangan ${t.id}`, async () => {
           io?.to(rooms.donor(t.donorId)).emit('invite:new', { ticketId: t.id, requestId: r.id });
-          await channels.push(t.donorId, 'Panggilan Darurat BloodSync', text);
+          await channels.push(t.donorId, 'Panggilan Darurat BloodSync', text, `invite-${t.id}`);
           const lines = [`🩸 ${text}`, ``, `Balas *1* = Siap Mendonor`, `Balas *2* = Tidak Bisa`, ``, `Atau buka ${env.publicAppUrl}/donor (masuk dengan nomor WA ini, tanpa daftar)`];
           // registry donors never signed up: say why they got this and how to stop it
           if (t.donor.source === 'REGISTRY') {

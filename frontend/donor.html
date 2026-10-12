@@ -101,7 +101,10 @@
                             <p class="text-brand-200 text-xs uppercase tracking-wider font-bold">Halo,</p>
                             <h2 class="text-xl font-bold truncate" id="dashName"></h2>
                             <p class="text-xs text-brand-100" id="dashArea"></p>
-                            <button id="btnGps" type="button" class="mt-1 text-[11px] font-semibold text-white/90 hover:text-white underline underline-offset-2"><i class="fa-solid fa-location-crosshairs mr-1"></i><span>Perbarui lokasi GPS</span></button>
+                            <div class="flex flex-wrap gap-x-3">
+                                <button id="btnGps" type="button" class="mt-1 text-[11px] font-semibold text-white/90 hover:text-white underline underline-offset-2"><i class="fa-solid fa-location-crosshairs mr-1"></i><span>Perbarui lokasi GPS</span></button>
+                                <button data-push-toggle type="button" class="hidden mt-1 text-[11px] font-semibold text-white/90 hover:text-white underline underline-offset-2"><i class="fa-solid fa-bell-slash mr-1"></i><span data-push-label>Aktifkan notifikasi</span></button>
+                            </div>
                         </div>
                     </div>
                     <div class="bg-white/10 rounded-2xl p-4 border border-white/20 flex items-center justify-between">
@@ -148,6 +151,7 @@
 
     <script src="/js/store.js"></script>
     <script src="/js/ui.js"></script>
+    <script src="/js/push.js"></script>
     <script src="/js/pages/donor.js"></script>
 </body>
 </html>

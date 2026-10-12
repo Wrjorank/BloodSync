@@ -97,6 +97,25 @@ model Faskes {
   @@map("faskes")
 }
 
+// one browser/device that agreed to receive push notifications (firebase cloud messaging).
+// a token belongs to either a donor or a staff account; signing in elsewhere moves it
+model PushToken {
+  id         String   @id @default(uuid())
+  token      String   @unique
+  donorId    String?
+  donor      Donor?   @relation(fields: [donorId], references: [id], onDelete: Cascade)
+  userId     String?
+  user       User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  faskesId   String?
+  userAgent  String?
+  createdAt  DateTime @default(now())
+  lastSeenAt DateTime @default(now())
+
+  @@index([donorId])
+  @@index([faskesId])
+  @@map("push_tokens")
+}
+
 // staff inbox of one faskes; readBy holds the ids of staff who have seen it, so read state is per person
 model Notification {
   id        String   @id @default(uuid())
@@ -128,6 +147,7 @@ model User {
   lastLoginAt  DateTime?
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
+  pushTokens   PushToken[]
 
   @@index([faskesId])
   @@map("users")
@@ -183,6 +203,7 @@ model Donor {
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
 
+  pushTokens PushToken[]
   tickets   DonorTicket[]
   donations Donation[]
   badges    DonorBadge[]
