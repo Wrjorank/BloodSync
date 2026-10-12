@@ -12,8 +12,31 @@ docker compose up -d --build
 
 Buka **http://localhost:5000** (Swagger: http://localhost:5000/docs). MySQL, Redis, migrasi, dan data awal disiapkan otomatis. Kode OTP muncul sebagai notifikasi di browser, juga di `docker compose logs -f app`.
 
+## Akses lewat Tailscale
+
+Untuk membuka app dari device lain di jaringan Tailnet Anda, pakai file `.env` di root project dan isi:
+
+```bash
+PUBLIC_APP_URL=http://<nama-device>.ts.net:5000
+TRUST_PROXY=0
+```
+
+Atau pakai IP Tailnet langsung:
+
+```bash
+PUBLIC_APP_URL=http://100.85.156.42:5000
+TRUST_PROXY=0
+```
+
+Setelah itu, jalankan:
+
+```bash
+docker compose up -d --build
+```
+
+Aplikasi akan terbuka di `http://<nama-device>.ts.net:5000` (atau IP Tailnet). Untuk Docker Compose yang dipakai di repo ini, port sudah dibuka ke semua interface (`5000:5000`) agar Tailscale bisa menjangkau.
+
 - WhatsApp asli: salin `.env.example` menjadi `.env`, isi `FONNTE_TOKEN`, lalu jalankan `docker compose up -d`. Langkah lengkapnya ada di bagian "WhatsApp: lokal vs production".
-- Port hanya dibuka untuk laptop ini (`127.0.0.1`). Untuk diakses HP lewat Wi-Fi, ubah `127.0.0.1:5000:5000` menjadi `5000:5000` dan hapus `DEV_INBOX_TRUST_NETWORK`.
 - Hentikan dengan `docker compose down`. Untuk menghapus database juga, pakai `docker compose down -v`.
 - Konfigurasi ini untuk development dan demo, bukan production.
 

@@ -5,6 +5,8 @@ name: bloodsync
 services:
   db:
     image: mysql:8.4
+    ports:
+      - "3307:3306"
     environment:
       MYSQL_DATABASE: bloodsync
       MYSQL_USER: bloodsync
@@ -42,7 +44,7 @@ services:
       REDIS_URL: redis://redis:6379
       JWT_SECRET: dev-docker-secret-ganti-sebelum-dipakai-publik
       CORS_ORIGIN: "*"
-      # alamat yang dipakai di link pesan WhatsApp; isi url tunnel/domain bila WhatsApp asli aktif
+      # alamat yang dipakai di link pesan WhatsApp; untuk Tailscale isi URL Tailnet device, misal http://iky-1.ts.net:5000
       PUBLIC_APP_URL: ${PUBLIC_APP_URL:-http://localhost:5000}
       TRUST_PROXY: ${TRUST_PROXY:-0}
       UPLOAD_DIR: /app/backend/uploads
@@ -50,10 +52,10 @@ services:
       ENABLE_API_DOCS: "true"
       FONNTE_TOKEN: ${FONNTE_TOKEN:-}
       WA_WEBHOOK_SECRET: ${WA_WEBHOOK_SECRET:-}
-      # notifikasi OTP lokal di browser host; aman karena port hanya dibuka di 127.0.0.1
+      # notifikasi OTP lokal di browser host; jika diakses lewat Tailscale, batasi ke host lokal saat masih pakai demo
       DEV_INBOX_TRUST_NETWORK: "true"
     ports:
-      - "127.0.0.1:5000:5000"
+      - "5000:5000"
     volumes:
       - uploads:/app/backend/uploads
     restart: unless-stopped

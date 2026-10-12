@@ -89,6 +89,8 @@ function showView(name) {
 
 function showLogin(show) {
     document.getElementById('loginView').classList.toggle('hidden', !show);
+    // keep keyboard focus inside the overlay
+    document.querySelectorAll('body > aside, body > main').forEach(el => { el.inert = show; });
 }
 
 async function onLogin(e) {
