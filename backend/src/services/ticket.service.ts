@@ -1,7 +1,7 @@
 import { Prisma, TicketStatus } from '@prisma/client';
 import { BADGES, DISPATCH, SCREENING, TICKET_STATUS_LABEL } from '../constants/blood';
 import { conflict, forbidden, notFound } from '../utils/AppError';
-import { Outbox } from './notification.service';
+import { Outbox, notifyStaff } from './notification.service';
 import { Tx, addEvent, lockRequest, progressOf, runInTx, settle, withdrawOtherInvites } from './dispatch.service';
 import { eligibility } from '../utils/helpers';
 import { audit } from './audit.service';
@@ -67,7 +67,7 @@ export const ticketService = {
       }
       // lock order is always request -> donor; the donor lock serialises accepts across different requests
       await tx.$queryRaw`SELECT id FROM donors WHERE id = ${donorId} FOR UPDATE`;
-      const donor = await tx.donor.findUniqueOrThrow({ where: { id: donorId }, select: { isActive: true, lastDonationAt: true } });
+      const donor = await tx.donor.findUniqueOrThrow({ where: { id: donorId }, select: { name: true, bloodType: true, isActive: true, lastDonationAt: true } });
       if (!donor.isActive || !eligibility(donor.lastDonationAt, DISPATCH.eligibilityDays).eligible) {
         await tx.donorTicket.update({ where: { id: ticketId }, data: { status: 'WITHDRAWN', respondedAt: now } });
         await settle(tx, req, outbox);
@@ -82,6 +82,11 @@ export const ticketService = {
       const etaMin = Math.max(5, Math.round((ticket.distanceKm / DISPATCH.travelSpeedKmh) * 60));
       const reservedUntil = new Date(now.getTime() + (etaMin + DISPATCH.reservationBufferMin) * 60000);
       await tx.donorTicket.update({ where: { id: ticketId }, data: { status: 'RESERVED', respondedAt: now, etaMin, reservedUntil } });
+      await notifyStaff(tx, outbox, req.faskesId, {
+        kind: 'DONOR_COMING', view: 'pemindai',
+        title: `Pendonor menuju faskes: ${donor.name}`,
+        body: `${donor.bloodType} untuk ${req.code}, perkiraan tiba ${etaMin} menit (${ticket.distanceKm.toFixed(1).replace('.', ',')} km).`,
+      });
       await withdrawOtherInvites(tx, donorId, ticketId, outbox);
       await settle(tx, req, outbox); // withdraws other invites once reservations cover the need
       return { status: 'RESERVED', code: ticket.code, etaMin, reservedUntil };
@@ -94,6 +99,11 @@ export const ticketService = {
       if (ticket.donorId !== donorId) throw notFound('Tiket tidak ditemukan');
       if (ticket.status !== 'RESERVED') throw conflict('Tiket tidak bisa dibatalkan', 'INVALID_STATE');
       await tx.donorTicket.update({ where: { id: ticketId }, data: { status: 'CANCELLED' } });
+      const donor = await tx.donor.findUniqueOrThrow({ where: { id: donorId }, select: { name: true } });
+      await notifyStaff(tx, outbox, req.faskesId, {
+        kind: 'DONOR_CANCELLED', view: 'pemindai',
+        title: `Pendonor batal datang: ${donor.name}`, body: `Tiket ${ticket.code} untuk ${req.code} dibatalkan. Sistem mencari pendonor cadangan.`,
+      });
       touch(outbox, req, donorId);
       await settle(tx, req, outbox);
       return { status: 'CANCELLED' };

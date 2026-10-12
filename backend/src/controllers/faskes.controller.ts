@@ -5,6 +5,7 @@ import { letterAbsolutePath } from '../middlewares/upload';
 import { faskesService } from '../services/faskes.service';
 import { requestService } from '../services/request.service';
 import { ticketService } from '../services/ticket.service';
+import { staffNotifications } from '../services/notification.service';
 import prisma from '../config/prisma';
 import { ApiResponse } from '../utils/ApiResponse';
 import { notFound } from '../utils/AppError';
@@ -123,5 +124,19 @@ export const faskesController = {
 
   async noShow(req: Request, res: Response) {
     return ApiResponse.success(res, await ticketService.noShow(staffFaskesId(req), userId(req), req.params.id), 'Slot dilepas');
+  },
+
+  async notifications(req: Request, res: Response) {
+    const { page, pageSize, unread } = req.query as unknown as { page: number; pageSize: number; unread: string };
+    return ApiResponse.success(res, await staffNotifications.list(staffFaskesId(req), userId(req), page, pageSize, unread === 'true'));
+  },
+
+  async readNotification(req: Request, res: Response) {
+    await staffNotifications.markRead(staffFaskesId(req), userId(req), req.params.id);
+    return ApiResponse.success(res, null);
+  },
+
+  async readAllNotifications(req: Request, res: Response) {
+    return ApiResponse.success(res, await staffNotifications.markAllRead(staffFaskesId(req), userId(req)), 'Semua notifikasi ditandai dibaca');
   },
 };

@@ -1,5 +1,4 @@
 import 'express-async-errors';
-import path from 'path';
 import express from 'express';
 import cors from 'cors';
 import { createServer } from 'http';
@@ -8,6 +7,7 @@ import { env } from './config/env';
 import prisma from './config/prisma';
 import { connectRedis, disconnectRedis, redisStatus } from './config/redis';
 import routes from './routes';
+import pages from './routes/pages';
 import { authenticate } from './middlewares/auth';
 import { errorHandler, notFoundHandler } from './middlewares/errorHandler';
 import { setupSocket } from './socket';
@@ -64,10 +64,7 @@ if (env.enableApiDocs) {
 app.use('/api', authenticate, routes);
 app.use('/api', notFoundHandler);
 
-// serves the frontend so pages and api share one origin. frontend/ holds only public files;
-// backend/ and the uploaded letters live outside it and are never reachable from here
-const FRONTEND_ROOT = path.resolve(__dirname, '../../frontend');
-app.use(express.static(FRONTEND_ROOT, { dotfiles: 'ignore', index: 'index.html' }));
+app.use(pages);
 
 app.use(errorHandler);
 

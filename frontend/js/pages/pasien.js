@@ -280,7 +280,7 @@ function renderTracker(req) {
 }
 
 function publicUrl(req) {
-    return new URL(`kartu.html?t=${req.publicToken}`, location.href).href;
+    return new URL(`/kartu?t=${req.publicToken}`, location.href).href;
 }
 
 function renderShare(req) {

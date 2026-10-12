@@ -1,3 +1,4 @@
+import { Prisma } from '@prisma/client';
 import { Server } from 'socket.io';
 import prisma from '../config/prisma';
 import { COMPONENT_LABEL } from '../constants/blood';
@@ -14,6 +15,44 @@ export class Outbox {
   // request id -> milestone the family should hear about on whatsapp
   familyNotices = new Map<string, 'APPROVED' | 'FULFILLED'>();
 }
+
+export type StaffNoticeKind =
+  | 'REQUEST_NEW' | 'REQUEST_URGENT' | 'REQUEST_CANCELLED' | 'REQUEST_FULFILLED' | 'REQUEST_EXPIRED' | 'RADIUS_MAXED'
+  | 'TRANSFER_IN' | 'TRANSFER_APPROVED' | 'TRANSFER_REJECTED'
+  | 'DONOR_COMING' | 'DONOR_CANCELLED' | 'DONOR_NO_SHOW' | 'STOCK_LOW';
+
+// written in the caller's transaction, so a rolled-back action leaves no notice behind
+export async function notifyStaff(
+  tx: Prisma.TransactionClient, outbox: Outbox, faskesId: string,
+  n: { kind: StaffNoticeKind; title: string; body: string; view: 'stok' | 'permintaan' | 'pemindai' | 'pendonor' },
+) {
+  await tx.notification.create({ data: { faskesId, ...n } });
+  outbox.faskes.add(faskesId);
+}
+
+export const staffNotifications = {
+  async list(faskesId: string, userId: string, page: number, pageSize: number, unreadOnly: boolean) {
+    const where: Prisma.NotificationWhereInput = { faskesId, ...(unreadOnly ? { NOT: { readBy: { has: userId } } } : {}) };
+    const [rows, total, unread] = await Promise.all([
+      prisma.notification.findMany({ where, orderBy: { createdAt: 'desc' }, skip: (page - 1) * pageSize, take: pageSize }),
+      prisma.notification.count({ where }),
+      prisma.notification.count({ where: { faskesId, NOT: { readBy: { has: userId } } } }),
+    ]);
+    return {
+      items: rows.map(({ readBy, faskesId: _f, ...n }) => ({ ...n, read: readBy.includes(userId) })),
+      total, unread, page, pageSize,
+    };
+  },
+
+  async markRead(faskesId: string, userId: string, id: string) {
+    await prisma.notification.updateMany({ where: { id, faskesId, NOT: { readBy: { has: userId } } }, data: { readBy: { push: userId } } });
+  },
+
+  async markAllRead(faskesId: string, userId: string) {
+    const { count } = await prisma.notification.updateMany({ where: { faskesId, NOT: { readBy: { has: userId } } }, data: { readBy: { push: userId } } });
+    return { updated: count };
+  },
+};
 
 let io: Server | null = null;
 export const setIo = (server: Server) => { io = server; };
@@ -83,7 +122,7 @@ async function notifyFamilies(notices: Outbox['familyNotices']) {
     where: { id: { in: [...notices.keys()] } },
     include: { faskes: { select: { name: true } } },
   });
-  const tracker = `${env.publicAppUrl}/pasien.html`;
+  const tracker = `${env.publicAppUrl}/pasien`;
   for (const r of requests) {
     const need = `${r.bagsNeeded} kantong ${COMPONENT_LABEL[r.component]} ${r.bloodType}`;
     const text = notices.get(r.id) === 'APPROVED'
@@ -97,7 +136,7 @@ async function notifyFamilies(notices: Outbox['familyNotices']) {
         tracker,
         ``,
         `Kartu resmi untuk dibagikan ke grup WA / media sosial (status selalu real-time):`,
-        `${env.publicAppUrl}/kartu.html?t=${r.publicToken}`,
+        `${env.publicAppUrl}/kartu?t=${r.publicToken}`,
       ].join('\n')
       : [
         `🎉 *Kebutuhan darah ${r.code} sudah terpenuhi.*`,
@@ -150,7 +189,7 @@ export async function flush(outbox: Outbox) {
         await step(`undangan ${t.id}`, async () => {
           io?.to(rooms.donor(t.donorId)).emit('invite:new', { ticketId: t.id, requestId: r.id });
           await channels.push(t.donorId, 'Panggilan Darurat BloodSync', text);
-          const lines = [`🩸 ${text}`, ``, `Balas *1* = Siap Mendonor`, `Balas *2* = Tidak Bisa`, ``, `Atau buka ${env.publicAppUrl}/pendonor.html (masuk dengan nomor WA ini, tanpa daftar)`];
+          const lines = [`🩸 ${text}`, ``, `Balas *1* = Siap Mendonor`, `Balas *2* = Tidak Bisa`, ``, `Atau buka ${env.publicAppUrl}/pendonor (masuk dengan nomor WA ini, tanpa daftar)`];
           // registry donors never signed up: say why they got this and how to stop it
           if (t.donor.source === 'REGISTRY') {
             lines.push(``, `Anda menerima pesan ini karena terdata sebagai calon pendonor golongan darah ${t.donor.bloodType} di dekat ${r.faskes.name}. Balas *STOP* bila tidak ingin dihubungi lagi.`);

@@ -60,11 +60,11 @@ Semua halaman ada di folder `frontend/`.
 
 | Halaman | Peran | Isi |
 |---|---|---|
-| `faskes.html` | Petugas RS / UDD PMI | Stok per komponen × golongan, verifikasi surat dokter, alokasi stok & mutasi antarfaskes, Dispatch Engine, pindai tiket QR, skrining, pengambilan |
-| `pasien.html` | Keluarga pasien | Pengajuan tanpa akun (OTP WhatsApp), unggah surat pengantar, live tracker, kartu darurat untuk disebar |
-| `pendonor.html` | Calon pendonor | Registrasi OTP, notifikasi tertarget, tiket digital + navigasi, riwayat, lencana, pengingat siklus 60 hari |
-| `kartu.html` | Publik | Kartu darurat terverifikasi; otomatis CLOSED saat kebutuhan terpenuhi |
-| `admin.html` | Super admin | Ringkasan dampak, perizinan faskes, akun petugas, audit log |
+| `/faskes` | Petugas RS / UDD PMI | Stok per komponen × golongan, verifikasi surat dokter, alokasi stok & mutasi antarfaskes, Dispatch Engine, pindai tiket QR, skrining, pengambilan |
+| `/pasien` | Keluarga pasien | Pengajuan tanpa akun (OTP WhatsApp), unggah surat pengantar, live tracker, kartu darurat untuk disebar |
+| `/pendonor` | Calon pendonor | Registrasi OTP, notifikasi tertarget, tiket digital + navigasi, riwayat, lencana, pengingat siklus 60 hari |
+| `/kartu?t=…` | Publik | Kartu darurat terverifikasi; otomatis CLOSED saat kebutuhan terpenuhi |
+| `/secretgate19` | Super admin | Ringkasan dampak, perizinan faskes, akun petugas, audit log |
 
 Akun awal dibuat oleh seed, semuanya dengan kata sandi `password`:
 
@@ -88,7 +88,7 @@ Notifikasi lokal hanya diterima browser di komputer yang sama. Koneksi lewat tun
 
 Dispatch Engine tidak hanya memanggil pendonor yang mendaftar di aplikasi. Setiap kali gelombang panggilan dimulai atau radius diperluas, engine juga membaca data penduduk di sekitar faskes (nama, tanggal lahir, golongan darah, alamat, nomor HP). Penduduk yang golongan darahnya cocok dan berusia 17–60 tahun otomatis dijadikan pendonor (`source = REGISTRY`), lalu menerima WA panggilan darurat yang sama.
 
-- Mereka bisa membalas *1*/*2* di WA, atau masuk ke `pendonor.html` cukup dengan OTP, tanpa form pendaftaran.
+- Mereka bisa membalas *1*/*2* di WA, atau masuk ke `/pendonor` cukup dengan OTP, tanpa form pendaftaran.
 - Pesan WA pertama menjelaskan alasan mereka dihubungi. Balasan *STOP* menonaktifkan nomor tersebut untuk seterusnya.
 - Sumber data diatur di `backend/src/services/population.service.ts`. Untuk lomba, `POPULATION_SOURCE=local` memakai tabel `residents` yang diisi seed dengan 400 penduduk dummy di Jakarta. Penduduk dummy hanya muncul di notifikasi WA lokal, tidak pernah dikirim ke HP asli.
 - Untuk demo WA ke HP asli, isi `DEMO_RESIDENT_PHONE` (plus `FONNTE_TOKEN`). Nomor itu masuk ke data penduduk di dekat RSUD Tarakan dan ikut dipanggil tanpa pernah mendaftar.
