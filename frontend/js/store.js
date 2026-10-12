@@ -227,6 +227,8 @@ const store = {
         notifications: (page = 1, pageSize = 10, unread = false) => api('GET', `/facility/me/notifications?page=${page}&pageSize=${pageSize}&unread=${unread}`, { role: 'staff' }),
         readNotification: (id) => api('POST', `/facility/me/notifications/${id}/read`, { role: 'staff' }),
         readAllNotifications: () => api('POST', '/facility/me/notifications/read-all', { role: 'staff' }),
+        addPushToken: (token) => api('POST', '/facility/me/push-tokens', { role: 'staff', body: { token } }),
+        removePushToken: (token) => api('DELETE', '/facility/me/push-tokens', { role: 'staff', body: { token } }),
         export: (dataset, query) => download('staff', `/facility/me/export/${encodeURIComponent(dataset)}${query ? '?' + query : ''}`),
         importTemplate: (dataset) => download('staff', `/facility/me/import/${encodeURIComponent(dataset)}/template`),
         import: (dataset, file, commit) => upload('staff', `/facility/me/import/${encodeURIComponent(dataset)}${commit ? '?commit=1' : ''}`, file),
@@ -283,6 +285,8 @@ const store = {
         finishRecovery: () => api('POST', '/donors/me/demo/finish-recovery', { role: 'donor' }),
         deactivate: () => api('DELETE', '/donors/me', { role: 'donor' }),
         reactivate: () => api('POST', '/donors/me/reactivate', { role: 'donor' }),
-        logout: () => api('POST', '/donors/me/logout', { role: 'donor' })
+        logout: () => api('POST', '/donors/me/logout', { role: 'donor' }),
+        addPushToken: (token) => api('POST', '/donors/me/push-tokens', { role: 'donor', body: { token } }),
+        removePushToken: (token) => api('DELETE', '/donors/me/push-tokens', { role: 'donor', body: { token } })
     }
 };

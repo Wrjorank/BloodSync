@@ -49,6 +49,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
     document.getElementById('transfersContainer').addEventListener('click', onTransferClick);
     setupNotifications();
+    pushNotify.bind(document.querySelectorAll('[data-push-toggle]'), 'staff', { save: store.staff.addPushToken, remove: store.staff.removePushToken });
     document.getElementById('screeningBody').addEventListener('submit', onScreeningSubmit);
     document.getElementById('screeningBody').addEventListener('click', onScreeningClick);
 
@@ -126,6 +127,7 @@ async function onLogin(e) {
 
 // the button: the server records the sign-out first, then the session is dropped
 async function signOut() {
+    await pushNotify.detach('staff', store.staff.removePushToken);
     await store.logout('staff');
     logout();
 }
@@ -149,6 +151,7 @@ function start() {
     ui.unsubscribe?.();
     ui.unsubscribe = subscribe('staff', load);
     load();
+    pushNotify.resume('staff', store.staff.addPushToken);
 }
 
 // fetch everything the dashboard shows, then render once

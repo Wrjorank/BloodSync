@@ -7,6 +7,7 @@ import { requestService } from '../services/request.service';
 import { ticketService } from '../services/ticket.service';
 import { staffNotifications } from '../services/notification.service';
 import { auditNow } from '../services/audit.service';
+import { pushService } from '../services/push.service';
 import { ApiResponse } from '../utils/ApiResponse';
 import { notFound } from '../utils/AppError';
 
@@ -134,6 +135,16 @@ export const faskesController = {
   async readNotification(req: Request, res: Response) {
     await staffNotifications.markRead(staffFaskesId(req), userId(req), req.params.id);
     return ApiResponse.success(res, null);
+  },
+
+  async addPushToken(req: Request, res: Response) {
+    await pushService.register(req.body.token, { userId: userId(req), faskesId: staffFaskesId(req) }, req.get('user-agent'));
+    return ApiResponse.success(res, null, 'Notifikasi diaktifkan');
+  },
+
+  async removePushToken(req: Request, res: Response) {
+    await pushService.unregister(req.body.token, { userId: userId(req) });
+    return ApiResponse.success(res, null, 'Notifikasi dimatikan');
   },
 
   async readAllNotifications(req: Request, res: Response) {

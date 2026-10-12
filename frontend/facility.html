@@ -92,6 +92,7 @@
                             </div>
                             <div id="notifList" class="max-h-96 overflow-y-auto divide-y divide-slate-100"></div>
                             <div class="px-4 py-3 border-t border-slate-100 flex items-center justify-end gap-2">
+                                <button data-push-toggle type="button" class="hidden mr-auto text-xs font-semibold text-slate-600 hover:text-slate-900 inline-flex items-center gap-1.5"><i class="fa-solid fa-bell-slash"></i><span data-push-label>Aktifkan notifikasi</span></button>
                                 <button id="notifReadAll" type="button" class="px-3 py-1.5 rounded-lg border border-slate-300 text-xs font-semibold text-slate-700 hover:bg-slate-100">Tandai semua dibaca</button>
                                 <button id="notifViewAll" type="button" class="px-3 py-1.5 rounded-lg bg-brand-600 text-xs font-semibold text-white hover:bg-brand-700">Lihat semua</button>
                             </div>
@@ -229,6 +230,7 @@
                             <p id="notifSummary" class="text-sm text-slate-500"></p>
                         </div>
                         <div class="flex items-center gap-2">
+                            <button data-push-toggle type="button" class="hidden h-10 px-3 rounded-xl border border-slate-300 text-sm font-semibold text-slate-700 hover:bg-slate-100 inline-flex items-center gap-2"><i class="fa-solid fa-bell-slash"></i><span data-push-label>Aktifkan notifikasi</span></button>
                             <button id="notifRefresh" type="button" class="w-10 h-10 rounded-xl border border-slate-300 text-slate-600 hover:bg-slate-100" title="Muat ulang" aria-label="Muat ulang"><i class="fa-solid fa-rotate-right"></i></button>
                             <button id="notifPageReadAll" type="button" class="btn-primary px-4 py-2.5 text-sm">Tandai semua dibaca</button>
                         </div>
@@ -344,6 +346,7 @@
 
     <script src="/js/store.js"></script>
     <script src="/js/ui.js"></script>
+    <script src="/js/push.js"></script>
     <script src="/js/pages/facility.js"></script>
 </body>
 </html>
