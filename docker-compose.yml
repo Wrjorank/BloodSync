@@ -1,5 +1,6 @@
 # development & demo lokal: docker compose up -d --build
-# bukan konfigurasi production (kata sandi default, NODE_ENV=development, WhatsApp tampil di browser)
+# default-nya untuk lokal (NODE_ENV=development, JWT_SECRET bawaan, CORS *, WhatsApp tampil di browser).
+# server yang bisa diakses publik wajib mengisi bagian "server publik" di .env (lihat .env.example)
 name: mhs_bloodsync
 
 services:
@@ -26,7 +27,8 @@ services:
     extra_hosts:
       - "host.docker.internal:host-gateway"
     environment:
-      NODE_ENV: development
+      # lokal: development. server publik: isi NODE_ENV=production di .env (mewajibkan JWT_SECRET, CORS_ORIGIN, FONNTE_TOKEN, WA_WEBHOOK_SECRET)
+      NODE_ENV: ${NODE_ENV:-development}
       DB_CONNECTION: ${DB_CONNECTION:-pgsql}
       DB_HOST: ${DB_HOST:-host.docker.internal}
       DB_PORT: ${DB_PORT:-5432}
@@ -35,21 +37,29 @@ services:
       DB_PASSWORD: ${DB_PASSWORD:-${DB_PASS:-postgres}}
       DB_SCHEMA: ${DB_SCHEMA:-public}
       REDIS_URL: redis://redis:6379
-      JWT_SECRET: dev-docker-secret-ganti-sebelum-dipakai-publik
-      CORS_ORIGIN: "*"
+      # default hanya untuk lokal; server publik wajib mengisi JWT_SECRET acak min 32 karakter di .env
+      JWT_SECRET: ${JWT_SECRET:-dev-docker-secret-ganti-sebelum-dipakai-publik}
+      CORS_ORIGIN: ${CORS_ORIGIN:-*}
       # alamat yang dipakai di link pesan WhatsApp; isi url tunnel/domain/Tailnet bila WhatsApp asli aktif
       PUBLIC_APP_URL: ${PUBLIC_APP_URL:-http://localhost:${APP_PORT:-5000}}
       TRUST_PROXY: ${TRUST_PROXY:-0}
       UPLOAD_DIR: /app/backend/uploads
-      ENABLE_DEMO_ROUTES: "true"
-      ENABLE_API_DOCS: "true"
+      ENABLE_DEMO_ROUTES: ${ENABLE_DEMO_ROUTES:-true}
+      ENABLE_API_DOCS: ${ENABLE_API_DOCS:-true}
       FONNTE_TOKEN: ${FONNTE_TOKEN:-}
       WA_WEBHOOK_SECRET: ${WA_WEBHOOK_SECRET:-}
       DEMO_RESIDENT_PHONE: ${DEMO_RESIDENT_PHONE:-}
       DEMO_RESIDENT_NAME: ${DEMO_RESIDENT_NAME:-}
       DEMO_RESIDENT_BLOOD: ${DEMO_RESIDENT_BLOOD:-}
+      FIREBASE_PROJECT_ID: ${FIREBASE_PROJECT_ID:-}
+      FIREBASE_CLIENT_EMAIL: ${FIREBASE_CLIENT_EMAIL:-}
+      FIREBASE_PRIVATE_KEY: ${FIREBASE_PRIVATE_KEY:-}
+      FIREBASE_API_KEY: ${FIREBASE_API_KEY:-}
+      FIREBASE_MESSAGING_SENDER_ID: ${FIREBASE_MESSAGING_SENDER_ID:-}
+      FIREBASE_APP_ID: ${FIREBASE_APP_ID:-}
+      FIREBASE_VAPID_KEY: ${FIREBASE_VAPID_KEY:-}
       # notifikasi OTP lokal di browser host; aman karena port hanya dibuka di 127.0.0.1
-      DEV_INBOX_TRUST_NETWORK: "true"
+      DEV_INBOX_TRUST_NETWORK: ${DEV_INBOX_TRUST_NETWORK:-true}
     ports:
       - "${APP_PORT:-5000}:5000"
     volumes:

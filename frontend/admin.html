@@ -4,10 +4,10 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Super Admin - BloodSync</title>
-    <link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
+    <link rel="icon" href="/assets/favicon.svg" type="image/svg+xml">
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="vendor/fontawesome/css/all.min.css">
-    <link rel="stylesheet" href="css/admin.css">
+    <link rel="stylesheet" href="/vendor/fontawesome/css/all.min.css">
+    <link rel="stylesheet" href="/css/admin.css">
 </head>
 <body class="bg-slate-50 text-slate-800 h-screen flex overflow-hidden antialiased">
 
@@ -30,7 +30,7 @@
             </div>
             <p id="loginError" class="hidden text-xs text-red-600 font-medium"></p>
             <button class="btn-dark w-full py-3">Masuk</button>
-            <a href="index.html" class="block text-center text-xs text-slate-600 hover:text-slate-900">Kembali ke beranda</a>
+            <a href="/" class="block text-center text-xs text-slate-600 hover:text-slate-900">Kembali ke beranda</a>
         </form>
     </div>
 
@@ -44,14 +44,14 @@
         </div>
         <nav class="p-4 flex-grow space-y-1">
             <div class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3 mt-2">Menu</div>
-            <button data-view="ringkasan" class="nav-link"><i class="fa-solid fa-chart-simple w-5"></i> Ringkasan</button>
-            <button data-view="faskes" class="nav-link"><i class="fa-solid fa-hospital w-5"></i> Fasilitas Kesehatan</button>
-            <button data-view="akun" class="nav-link"><i class="fa-solid fa-id-badge w-5"></i> Akun Petugas</button>
-            <button data-view="audit" class="nav-link"><i class="fa-solid fa-clock-rotate-left w-5"></i> Audit Log</button>
+            <button data-view="overview" class="nav-link"><i class="fa-solid fa-chart-simple w-5"></i> Ringkasan</button>
+            <button data-view="facilities" class="nav-link"><i class="fa-solid fa-hospital w-5"></i> Fasilitas Kesehatan</button>
+            <button data-view="accounts" class="nav-link"><i class="fa-solid fa-id-badge w-5"></i> Akun Petugas</button>
+            <button data-view="audit-log" class="nav-link"><i class="fa-solid fa-clock-rotate-left w-5"></i> Audit Log</button>
         </nav>
         <div class="p-4 border-t border-slate-800 space-y-1">
             <div id="adminWho" class="px-4 pb-2 text-xs text-slate-400 truncate"></div>
-            <a href="index.html" class="flex items-center gap-3 text-slate-400 hover:text-white px-4 py-2 rounded-lg font-medium transition-colors text-sm"><i class="fa-solid fa-arrow-left w-5"></i> Beranda</a>
+            <a href="/" class="flex items-center gap-3 text-slate-400 hover:text-white px-4 py-2 rounded-lg font-medium transition-colors text-sm"><i class="fa-solid fa-arrow-left w-5"></i> Beranda</a>
             <button id="btnLogout" class="w-full flex items-center gap-3 text-brand-500 hover:text-white hover:bg-brand-600 px-4 py-2 rounded-lg font-medium transition-colors text-sm"><i class="fa-solid fa-right-from-bracket w-5"></i> Keluar</button>
         </div>
     </aside>
@@ -60,7 +60,7 @@
         <header class="bg-gradient-to-r from-slate-900 via-slate-800 to-slate-700 border-b border-slate-700 shrink-0">
             <div class="h-16 flex items-center justify-between px-4 sm:px-6">
                 <div class="flex items-center gap-3 min-w-0">
-                <button id="btnBack" data-view="ringkasan" class="hidden w-9 h-9 shrink-0 rounded-lg border border-slate-600 text-slate-300 hover:bg-white/10 hover:text-white transition-colors" title="Kembali ke Ringkasan" aria-label="Kembali"><i class="fa-solid fa-arrow-left"></i></button>
+                <button id="btnBack" data-view="overview" class="hidden w-9 h-9 shrink-0 rounded-lg border border-slate-600 text-slate-300 hover:bg-white/10 hover:text-white transition-colors" title="Kembali ke Ringkasan" aria-label="Kembali"><i class="fa-solid fa-arrow-left"></i></button>
                 <div class="min-w-0">
                     <h1 id="viewTitle" class="font-bold text-lg text-white leading-tight">Ringkasan</h1>
                     <p id="viewDesc" class="text-xs text-slate-300 truncate"></p>
@@ -74,21 +74,21 @@
                 </div>
             </div>
             <nav class="md:hidden flex gap-1 overflow-x-auto px-4 pb-3">
-                <button data-view="ringkasan" class="tab-link">Ringkasan</button>
-                <button data-view="faskes" class="tab-link">Faskes</button>
-                <button data-view="akun" class="tab-link">Akun</button>
-                <button data-view="audit" class="tab-link">Audit</button>
+                <button data-view="overview" class="tab-link">Ringkasan</button>
+                <button data-view="facilities" class="tab-link">Faskes</button>
+                <button data-view="accounts" class="tab-link">Akun</button>
+                <button data-view="audit-log" class="tab-link">Audit</button>
             </nav>
         </header>
 
         <div class="flex-grow overflow-y-auto">
             <div class="w-full p-4 sm:p-6">
 
-                <section data-panel="ringkasan" class="space-y-4">
+                <section data-panel="overview" class="space-y-4">
                     <div id="kpis" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4"></div>
                     <div id="statusBar" class="card p-5"></div>
                     <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                        <button data-go="faskes" class="card p-5 text-left flex items-center gap-4 hover:border-slate-300 transition-colors">
+                        <button data-go="facilities" class="card p-5 text-left flex items-center gap-4 hover:border-slate-300 transition-colors">
                             <div class="w-11 h-11 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center"><i class="fa-solid fa-hospital"></i></div>
                             <div class="flex-grow">
                                 <div class="font-semibold text-slate-800">Fasilitas Kesehatan</div>
@@ -96,7 +96,7 @@
                             </div>
                             <i class="fa-solid fa-chevron-right text-slate-300"></i>
                         </button>
-                        <button data-go="akun" class="card p-5 text-left flex items-center gap-4 hover:border-slate-300 transition-colors">
+                        <button data-go="accounts" class="card p-5 text-left flex items-center gap-4 hover:border-slate-300 transition-colors">
                             <div class="w-11 h-11 rounded-xl bg-violet-50 text-violet-600 flex items-center justify-center"><i class="fa-solid fa-id-badge"></i></div>
                             <div class="flex-grow">
                                 <div class="font-semibold text-slate-800">Akun Petugas</div>
@@ -107,7 +107,7 @@
                     </div>
                 </section>
 
-                <section data-panel="faskes" class="hidden card overflow-hidden">
+                <section data-panel="facilities" class="hidden card overflow-hidden">
                     <div class="px-5 py-4 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                         <div>
                             <h2 class="font-bold text-slate-800">Daftar Faskes</h2>
@@ -142,7 +142,7 @@
                     </div>
                 </section>
 
-                <section data-panel="akun" class="hidden card overflow-hidden">
+                <section data-panel="accounts" class="hidden card overflow-hidden">
                     <div class="px-5 py-4 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                         <div>
                             <h2 class="font-bold text-slate-800">Daftar Akun</h2>
@@ -177,33 +177,81 @@
                     </div>
                 </section>
 
-                <section data-panel="audit" class="hidden card overflow-hidden">
-                    <div class="px-5 py-4 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <section data-panel="audit-log" class="hidden card overflow-hidden">
+                    <div class="px-5 pt-5 pb-4 flex flex-col sm:flex-row sm:items-start justify-between gap-3">
                         <div>
-                            <h2 class="font-bold text-slate-800">Riwayat Aktivitas</h2>
-                            <p class="text-xs text-slate-500">Semua perubahan data tercatat di sini</p>
+                            <h2 class="font-bold text-xl text-slate-900">Log Aktivitas</h2>
+                            <p class="text-sm text-slate-500">Riwayat aktivitas: login, logout, tambah, ubah, hapus, export, import, dan error.</p>
                         </div>
-                        <form id="auditFilter" class="flex gap-2">
-                            <div class="relative flex-grow">
-                                <i class="fa-solid fa-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-xs text-slate-400"></i>
-                                <input id="auditActor" type="search" class="search" placeholder="Filter aktor">
-                            </div>
-                            <button class="btn-dark px-4 py-2 text-sm">Cari</button>
-                        </form>
+                        <div class="flex gap-2 shrink-0">
+                            <button id="auditFilterToggle" type="button" class="icon-btn" title="Filter" aria-label="Filter" aria-expanded="false" aria-controls="auditFilters"><i class="fa-solid fa-filter"></i></button>
+                            <button id="auditRefresh" type="button" class="icon-btn" title="Muat ulang" aria-label="Muat ulang"><i class="fa-solid fa-rotate-right"></i></button>
+                            <button data-export type="button" class="icon-btn icon-btn-primary" title="Unduh Excel" aria-label="Unduh Excel"><i class="fa-solid fa-download"></i></button>
+                        </div>
                     </div>
-                    <div class="overflow-x-auto">
-                        <table class="w-full min-w-[640px]">
-                            <thead class="bg-slate-50"><tr><th class="th">Waktu</th><th class="th">Aktor</th><th class="th">Aksi</th><th class="th">Referensi</th></tr></thead>
+                    <form id="auditFilters" class="hidden mx-5 mb-4 p-4 rounded-xl bg-slate-50 border border-slate-200 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 items-end">
+                        <label class="block"><span class="lbl">Aksi</span>
+                            <select name="event" class="inp">
+                                <option value="">Semua aksi</option>
+                                <option value="LOGIN">Login</option>
+                                <option value="LOGIN_FAILED">Login gagal</option>
+                                <option value="LOGOUT">Logout</option>
+                                <option value="CREATED">Tambah</option>
+                                <option value="UPDATED">Ubah</option>
+                                <option value="DELETED">Hapus</option>
+                                <option value="EXPORTED">Export</option>
+                                <option value="IMPORTED">Import</option>
+                                <option value="VIEWED">Lihat dokumen</option>
+                                <option value="ERROR">Error</option>
+                            </select>
+                        </label>
+                        <label class="block"><span class="lbl">Pengguna</span>
+                            <select name="actorType" class="inp">
+                                <option value="">Semua pengguna</option>
+                                <option value="admin">Super admin</option>
+                                <option value="staff">Petugas faskes</option>
+                                <option value="family">Keluarga pasien</option>
+                                <option value="donor">Pendonor</option>
+                                <option value="guest">Sistem / tamu</option>
+                            </select>
+                        </label>
+                        <label class="block"><span class="lbl">Dari tanggal</span><input name="from" type="date" class="inp"></label>
+                        <label class="block"><span class="lbl">Sampai tanggal</span><input name="to" type="date" class="inp"></label>
+                        <div class="flex gap-2">
+                            <button class="btn-dark flex-1 py-2.5 text-sm">Terapkan</button>
+                            <button type="reset" class="btn-ghost px-3 py-2.5 text-sm">Reset</button>
+                        </div>
+                    </form>
+                    <div class="px-5 pb-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-sm text-slate-500">
+                        <label class="flex items-center gap-2">Tampilkan
+                            <select id="auditPageSize" class="page-size">
+                                <option value="10" selected>10</option><option value="25">25</option><option value="50">50</option><option value="100">100</option>
+                            </select>
+                            entri
+                        </label>
+                        <label class="flex items-center gap-2">Cari:
+                            <input id="auditSearch" type="search" class="inp !py-2 sm:!w-64" placeholder="email, IP, aksi, browser" autocomplete="off">
+                        </label>
+                    </div>
+                    <div class="overflow-x-auto border-t border-slate-100">
+                        <table class="w-full min-w-[960px]">
+                            <thead class="bg-slate-50">
+                                <tr>
+                                    <th class="th"><button data-sort="actor" class="sort-btn">Pengguna</button></th>
+                                    <th class="th"><button data-sort="ip" class="sort-btn">Alamat IP</button></th>
+                                    <th class="th"><button data-sort="browser" class="sort-btn">Browser</button></th>
+                                    <th class="th"><button data-sort="platform" class="sort-btn">Platform</button></th>
+                                    <th class="th"><button data-sort="event" class="sort-btn">Aksi</button></th>
+                                    <th class="th"><button data-sort="subjectType" class="sort-btn">Model</button></th>
+                                    <th class="th text-right"><button data-sort="createdAt" class="sort-btn">Waktu</button></th>
+                                    <th class="th text-center">Detail</th>
+                                </tr>
+                            </thead>
                             <tbody id="auditTable" class="divide-y divide-slate-100"></tbody>
                         </table>
                     </div>
                     <div class="px-5 py-3 border-t border-slate-100 flex flex-wrap items-center justify-between gap-3">
-                        <div class="flex items-center gap-3 text-xs text-slate-500">
-                            <select id="auditPageSize" class="page-size" aria-label="Jumlah data per halaman">
-                                <option value="10">10</option><option value="15" selected>15</option><option value="20">20</option><option value="25">25</option><option value="30">30</option>
-                            </select>
-                            <span id="auditInfo"></span>
-                        </div>
+                        <span id="auditInfo" class="text-sm text-slate-500"></span>
                         <div class="flex gap-1">
                             <button id="auditPrev" class="pg-btn" aria-label="Sebelumnya"><i class="fa-solid fa-chevron-left"></i></button>
                             <div id="auditPages" class="flex gap-1"></div>
@@ -215,6 +263,18 @@
             </div>
         </div>
     </main>
+
+    <dialog id="auditDialog" class="rounded-2xl p-0 w-[calc(100%-2rem)] max-w-3xl shadow-2xl">
+        <div class="flex items-center justify-between px-6 py-4 border-b border-slate-100">
+            <h3 class="font-bold text-lg text-slate-900">Detail Log</h3>
+            <button type="button" data-close class="w-8 h-8 rounded-lg text-slate-400 hover:bg-slate-100" aria-label="Tutup"><i class="fa-solid fa-xmark"></i></button>
+        </div>
+        <div class="px-6 pt-2 border-b border-slate-100 flex gap-1" role="tablist">
+            <button type="button" role="tab" data-audit-tab="detail" class="audit-tab">Detail</button>
+            <button type="button" role="tab" data-audit-tab="data" class="audit-tab">Data</button>
+        </div>
+        <div id="auditDetail" class="p-6 max-h-[70vh] overflow-y-auto"></div>
+    </dialog>
 
     <dialog id="faskesDialog" class="rounded-2xl p-0 w-[calc(100%-2rem)] max-w-lg shadow-2xl">
         <form id="faskesForm" class="p-6 space-y-4">
@@ -290,11 +350,11 @@
             </div>
             <label class="block"><span class="lbl">Jenis data</span>
                 <select name="dataset" class="inp">
-                    <option value="audit" data-range="1" data-hint="Semua aktivitas sistem. Filter aktor di halaman Audit Log ikut dipakai.">Audit log</option>
-                    <option value="permintaan" data-range="1" data-hint="Permintaan darah di semua faskes, tanpa identitas pasien.">Permintaan darah (semua faskes)</option>
-                    <option value="faskes" data-hint="Daftar faskes, status izin, jumlah petugas & permintaan.">Fasilitas kesehatan</option>
-                    <option value="akun" data-hint="Akun petugas & admin beserta login terakhir. Kata sandi tidak pernah ikut.">Akun petugas</option>
-                    <option value="pendonor" data-hint="Pendonor terdaftar. Nama & nomor WhatsApp disamarkan.">Pendonor</option>
+                    <option value="audit-log" data-range="1" data-hint="Semua aktivitas sistem: pengguna, IP, browser, aksi, dan data yang berubah. Pencarian di halaman Log Aktivitas ikut dipakai.">Audit log</option>
+                    <option value="requests" data-range="1" data-hint="Permintaan darah di semua faskes, tanpa identitas pasien.">Permintaan darah (semua faskes)</option>
+                    <option value="facilities" data-hint="Daftar faskes, status izin, jumlah petugas & permintaan.">Fasilitas kesehatan</option>
+                    <option value="accounts" data-hint="Akun petugas & admin beserta login terakhir. Kata sandi tidak pernah ikut.">Akun petugas</option>
+                    <option value="donors" data-hint="Pendonor terdaftar. Nama & nomor WhatsApp disamarkan.">Pendonor</option>
                 </select>
             </label>
             <p id="exportHint" class="text-xs text-slate-500 -mt-2"></p>
@@ -323,8 +383,8 @@
             </div>
             <label class="block"><span class="lbl">Jenis data</span>
                 <select name="dataset" class="inp">
-                    <option value="faskes" data-hint="Tambah banyak faskes sekaligus. Matriks stok 0 kantong dibuat otomatis.">Fasilitas kesehatan</option>
-                    <option value="akun" data-hint="Buat banyak akun petugas sekaligus. Kata sandi awal dibuat acak oleh sistem dan diunduh sekali setelah disimpan.">Akun petugas</option>
+                    <option value="facilities" data-hint="Tambah banyak faskes sekaligus. Matriks stok 0 kantong dibuat otomatis.">Fasilitas kesehatan</option>
+                    <option value="accounts" data-hint="Buat banyak akun petugas sekaligus. Kata sandi awal dibuat acak oleh sistem dan diunduh sekali setelah disimpan.">Akun petugas</option>
                 </select>
             </label>
             <p id="importHint" class="text-xs text-slate-500 -mt-2"></p>
@@ -340,8 +400,8 @@
         </form>
     </dialog>
 
-    <script src="js/store.js"></script>
-    <script src="js/ui.js"></script>
-    <script src="js/pages/admin.js"></script>
+    <script src="/js/store.js"></script>
+    <script src="/js/ui.js"></script>
+    <script src="/js/pages/admin.js"></script>
 </body>
 </html>

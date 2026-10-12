@@ -10,8 +10,8 @@ import { readSheet } from '../utils/xlsx';
 import { runInTx } from './dispatch.service';
 import { audit } from './audit.service';
 
-export const STAFF_IMPORTS = ['stok'] as const;
-export const ADMIN_IMPORTS = ['faskes', 'akun'] as const;
+export const STAFF_IMPORTS = ['stock'] as const;
+export const ADMIN_IMPORTS = ['facilities', 'accounts'] as const;
 export type StaffImport = (typeof STAFF_IMPORTS)[number];
 export type AdminImport = (typeof ADMIN_IMPORTS)[number];
 
@@ -295,7 +295,7 @@ export const importService = {
   },
 
   async adminTemplate(dataset: AdminImport) {
-    if (dataset === 'faskes') {
+    if (dataset === 'facilities') {
       return template(FASKES_COLUMNS, [], [{
         sheet: 'Petunjuk', columns: [{ width: 14 }, { width: 8 }, { width: 80 }],
         data: instructions(FASKES_COLUMNS, FASKES_MAX, [
@@ -376,7 +376,7 @@ export const importService = {
 
   // ---------- admin ----------
   async previewAdmin(dataset: AdminImport, buffer: Buffer): Promise<ImportPreview> {
-    if (dataset === 'faskes') {
+    if (dataset === 'facilities') {
       const p = await parseFaskes(buffer);
       return preview(dataset, p, `${p.rows.length} faskes baru akan ditambahkan.`, p.rows.map(({ value: f }) => ({
         Nama: f.name, Jenis: f.type, Wilayah: f.area, Latitude: f.lat, Longitude: f.lng,
@@ -389,7 +389,7 @@ export const importService = {
   },
 
   async commitAdmin(adminId: string, dataset: AdminImport, buffer: Buffer) {
-    if (dataset === 'faskes') {
+    if (dataset === 'facilities') {
       const p = await parseFaskes(buffer);
       assertClean(p);
       const components = Object.keys(COMPONENT_LABEL) as Component[];
@@ -398,7 +398,7 @@ export const importService = {
           const created = await tx.faskes.create({ data: { name: f.name, type: f.type, area: f.area, address: f.address || null, lat: f.lat, lng: f.lng } });
           await tx.stock.createMany({ data: components.flatMap(component => BLOOD_TYPES.map(bloodType => ({ faskesId: created.id, component, bloodType, quantity: 0 }))) });
         }
-        await audit(tx, `admin:${adminId}`, 'import.faskes', undefined, { rows: p.rows.length });
+        await audit(tx, `admin:${adminId}`, 'import.facilities', undefined, { rows: p.rows.length });
         return { imported: p.rows.length };
       });
     }
@@ -414,7 +414,7 @@ export const importService = {
     }
     await runInTx(async tx => {
       await tx.user.createMany({ data: accounts.map(a => ({ name: a.name, email: a.email, role: a.role, faskesId: a.faskesId, passwordHash: a.passwordHash })) });
-      await audit(tx, `admin:${adminId}`, 'import.akun', undefined, { rows: accounts.length });
+      await audit(tx, `admin:${adminId}`, 'import.accounts', undefined, { rows: accounts.length });
     });
     // the only copy of the initial passwords; never stored or logged
     const file = await writeXlsxFile([

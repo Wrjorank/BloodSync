@@ -71,6 +71,24 @@ const fonnteToken = secret('FONNTE_TOKEN', '');
 const waWebhookSecret = secret('WA_WEBHOOK_SECRET', '');
 if (isProduction && waWebhookSecret.length < 16) throw new Error('WA_WEBHOOK_SECRET minimal 16 karakter di production');
 
+// firebase cloud messaging (push notifications). all optional: without them push is skipped and only
+// whatsapp + the realtime socket remain. the server half is a service account, the web half is public by design
+// .env files hold the pem on one line with literal \n
+const firebasePrivateKey = (process.env.FIREBASE_PRIVATE_KEY || '').replace(/\\n/g, '\n');
+const firebaseServer = process.env.FIREBASE_PROJECT_ID && process.env.FIREBASE_CLIENT_EMAIL && firebasePrivateKey
+  ? { projectId: process.env.FIREBASE_PROJECT_ID, clientEmail: process.env.FIREBASE_CLIENT_EMAIL, privateKey: firebasePrivateKey }
+  : null;
+const firebaseWeb = process.env.FIREBASE_PROJECT_ID && process.env.FIREBASE_API_KEY && process.env.FIREBASE_APP_ID
+  && process.env.FIREBASE_MESSAGING_SENDER_ID && process.env.FIREBASE_VAPID_KEY
+  ? {
+    apiKey: process.env.FIREBASE_API_KEY,
+    projectId: process.env.FIREBASE_PROJECT_ID,
+    messagingSenderId: process.env.FIREBASE_MESSAGING_SENDER_ID,
+    appId: process.env.FIREBASE_APP_ID,
+    vapidKey: process.env.FIREBASE_VAPID_KEY,
+  }
+  : null;
+
 export const env = {
   nodeEnv,
   isProduction,
@@ -90,6 +108,8 @@ export const env = {
   enableApiDocs: process.env.ENABLE_API_DOCS ? process.env.ENABLE_API_DOCS === 'true' : !isProduction,
   // fonnte whatsapp gateway. production requires it
   fonnteToken,
+  // push needs both halves: the server sends, the browser subscribes
+  firebase: firebaseServer && firebaseWeb ? { server: firebaseServer, web: firebaseWeb } : null,
   waWebhookSecret,
   // where dispatch finds people who never signed up: 'local' = residents table (dummy),
   // 'external' = api of an institution holding population data (dukcapil, bpjs, ...)

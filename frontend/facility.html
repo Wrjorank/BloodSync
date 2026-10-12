@@ -4,10 +4,10 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Petugas Faskes - Dasbor Operasional</title>
-    <link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
+    <link rel="icon" href="/assets/favicon.svg" type="image/svg+xml">
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="vendor/fontawesome/css/all.min.css">
-    <link rel="stylesheet" href="css/faskes.css">
+    <link rel="stylesheet" href="/vendor/fontawesome/css/all.min.css">
+    <link rel="stylesheet" href="/css/facility.css">
 </head>
 <body class="bg-slate-50 text-slate-800 h-screen flex overflow-hidden antialiased">
 
@@ -33,7 +33,7 @@
             </div>
             <p id="loginError" class="hidden text-xs text-red-600 font-medium"></p>
             <button class="btn-dark w-full py-3">Masuk</button>
-            <a href="index.html" class="block text-center text-xs text-slate-600 hover:text-slate-900">Kembali ke beranda</a>
+            <a href="/" class="block text-center text-xs text-slate-600 hover:text-slate-900">Kembali ke beranda</a>
         </form>
     </div>
 
@@ -47,17 +47,21 @@
         </div>
         <nav class="p-4 flex-grow space-y-1">
             <div class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3 mt-2">Menu Utama</div>
-            <button data-view="stok" class="nav-link"><i class="fa-solid fa-border-all w-5"></i> Inventaris Darah</button>
-            <button data-view="permintaan" class="nav-link">
+            <button data-view="stock" class="nav-link"><i class="fa-solid fa-border-all w-5"></i> Inventaris Darah</button>
+            <button data-view="requests" class="nav-link">
                 <i class="fa-solid fa-file-waveform w-5"></i> Permintaan
                 <span id="navPending" class="hidden ml-auto bg-brand-600 text-white text-[11px] font-bold px-2 py-0.5 rounded-full"></span>
             </button>
-            <button data-view="pemindai" class="nav-link"><i class="fa-solid fa-qrcode w-5"></i> Pemindai Tiket</button>
-            <button data-view="pendonor" class="nav-link"><i class="fa-solid fa-users w-5"></i> Data Pendonor</button>
+            <button data-view="scanner" class="nav-link"><i class="fa-solid fa-qrcode w-5"></i> Pemindai Tiket</button>
+            <button data-view="donors" class="nav-link"><i class="fa-solid fa-users w-5"></i> Data Pendonor</button>
+            <button data-view="notifications" class="nav-link">
+                <i class="fa-solid fa-bell w-5"></i> Notifikasi
+                <span id="navUnread" class="hidden ml-auto bg-brand-600 text-white text-[11px] font-bold px-2 py-0.5 rounded-full"></span>
+            </button>
         </nav>
         <div class="p-4 border-t border-slate-800 space-y-1">
             <div id="staffWho" class="px-4 pb-2 text-xs text-slate-400 truncate"></div>
-            <a href="index.html" class="flex items-center gap-3 text-slate-400 hover:text-white px-4 py-2 rounded-lg font-medium transition-colors text-sm"><i class="fa-solid fa-arrow-left w-5"></i> Beranda</a>
+            <a href="/" class="flex items-center gap-3 text-slate-400 hover:text-white px-4 py-2 rounded-lg font-medium transition-colors text-sm"><i class="fa-solid fa-arrow-left w-5"></i> Beranda</a>
             <button id="btnLogout" class="w-full flex items-center gap-3 text-brand-500 hover:text-white hover:bg-brand-600 px-4 py-2 rounded-lg font-medium transition-colors text-sm"><i class="fa-solid fa-right-from-bracket w-5"></i> Keluar</button>
         </div>
     </aside>
@@ -66,7 +70,7 @@
         <header class="bg-gradient-to-r from-slate-900 via-slate-800 to-slate-700 border-b border-slate-700 shrink-0">
             <div class="h-16 flex items-center justify-between px-4 sm:px-6">
                 <div class="flex items-center gap-3 min-w-0">
-                    <button id="btnBack" data-view="stok" class="hidden w-9 h-9 shrink-0 rounded-lg border border-slate-600 text-slate-300 hover:bg-white/10 hover:text-white transition-colors" title="Kembali ke Inventaris" aria-label="Kembali"><i class="fa-solid fa-arrow-left"></i></button>
+                    <button id="btnBack" data-view="stock" class="hidden w-9 h-9 shrink-0 rounded-lg border border-slate-600 text-slate-300 hover:bg-white/10 hover:text-white transition-colors" title="Kembali ke Inventaris" aria-label="Kembali"><i class="fa-solid fa-arrow-left"></i></button>
                     <div class="min-w-0">
                         <h1 id="faskesName" class="font-bold text-lg text-white leading-tight truncate">Dasbor Operasional</h1>
                         <p id="faskesMeta" class="text-xs text-slate-300 truncate"></p>
@@ -76,18 +80,33 @@
                     <span class="text-xs text-slate-300 hidden sm:flex items-center gap-1.5"><i class="fa-solid fa-circle text-[8px] text-green-400"></i> <span id="syncedAt">Tersinkronisasi</span></span>
                     <button data-import class="h-9 px-3 rounded-lg border border-slate-600 text-slate-200 hover:bg-white/10 hover:text-white text-sm font-semibold inline-flex items-center gap-2" title="Import stok dari Excel"><i class="fa-solid fa-file-import"></i><span class="hidden sm:inline">Import</span></button>
                     <button data-export class="h-9 px-3 rounded-lg border border-slate-600 text-slate-200 hover:bg-white/10 hover:text-white text-sm font-semibold inline-flex items-center gap-2" title="Export data ke Excel"><i class="fa-solid fa-file-excel"></i><span class="hidden sm:inline">Export</span></button>
-                    <button data-view="permintaan" class="relative text-slate-300 hover:text-white" title="Permintaan masuk" aria-label="Permintaan masuk">
-                        <i class="fa-regular fa-bell text-xl"></i>
-                        <span id="bellDot" class="hidden absolute -top-0.5 -right-0.5 w-2.5 h-2.5 bg-brand-500 rounded-full border-2 border-slate-800"></span>
-                    </button>
+                    <div id="notifWrap" class="relative">
+                        <button id="btnBell" class="relative text-slate-300 hover:text-white" title="Notifikasi" aria-label="Notifikasi" aria-haspopup="true" aria-expanded="false" aria-controls="notifPanel">
+                            <i class="fa-regular fa-bell text-xl"></i>
+                            <span id="bellDot" class="hidden absolute -top-0.5 -right-0.5 w-2.5 h-2.5 bg-brand-500 rounded-full border-2 border-slate-800"></span>
+                        </button>
+                        <div id="notifPanel" class="hidden absolute right-0 top-full mt-3 z-40 w-96 max-w-[calc(100vw-2rem)] bg-white rounded-2xl border border-slate-200 shadow-2xl overflow-hidden">
+                            <div class="px-4 py-3 border-b border-slate-100 flex items-center justify-between">
+                                <h2 class="font-bold text-base text-slate-900">Notifikasi</h2>
+                                <span id="notifCount" class="text-xs font-semibold text-slate-500"></span>
+                            </div>
+                            <div id="notifList" class="max-h-96 overflow-y-auto divide-y divide-slate-100"></div>
+                            <div class="px-4 py-3 border-t border-slate-100 flex items-center justify-end gap-2">
+                                <button data-push-toggle type="button" class="hidden mr-auto text-xs font-semibold text-slate-600 hover:text-slate-900 inline-flex items-center gap-1.5"><i class="fa-solid fa-bell-slash"></i><span data-push-label>Aktifkan notifikasi</span></button>
+                                <button id="notifReadAll" type="button" class="px-3 py-1.5 rounded-lg border border-slate-300 text-xs font-semibold text-slate-700 hover:bg-slate-100">Tandai semua dibaca</button>
+                                <button id="notifViewAll" type="button" class="px-3 py-1.5 rounded-lg bg-brand-600 text-xs font-semibold text-white hover:bg-brand-700">Lihat semua</button>
+                            </div>
+                        </div>
+                    </div>
                     <button id="btnLogoutMobile" class="md:hidden w-9 h-9 rounded-lg text-slate-300 hover:bg-white/10 hover:text-white" title="Keluar"><i class="fa-solid fa-right-from-bracket"></i></button>
                 </div>
             </div>
             <nav class="md:hidden flex gap-1 overflow-x-auto px-4 pb-3">
-                <button data-view="stok" class="tab-link">Inventaris</button>
-                <button data-view="permintaan" class="tab-link">Permintaan</button>
-                <button data-view="pemindai" class="tab-link">Pemindai</button>
-                <button data-view="pendonor" class="tab-link">Pendonor</button>
+                <button data-view="stock" class="tab-link">Inventaris</button>
+                <button data-view="requests" class="tab-link">Permintaan</button>
+                <button data-view="scanner" class="tab-link">Pemindai</button>
+                <button data-view="donors" class="tab-link">Pendonor</button>
+                <button data-view="notifications" class="tab-link">Notifikasi</button>
             </nav>
         </header>
 
@@ -95,7 +114,7 @@
             <div class="w-full p-4 sm:p-6">
 
                 <!-- inventaris -->
-                <section data-panel="stok" class="space-y-5">
+                <section data-panel="stock" class="space-y-5">
                     <div class="flex flex-col sm:flex-row sm:items-end justify-between gap-3">
                         <div>
                             <h2 class="font-bold text-xl text-slate-900">Inventaris Darah</h2>
@@ -127,7 +146,7 @@
                 </section>
 
                 <!-- permintaan -->
-                <section data-panel="permintaan" class="hidden space-y-5">
+                <section data-panel="requests" class="hidden space-y-5">
                     <div>
                         <h2 class="font-bold text-xl text-slate-900">Permintaan Darurat</h2>
                         <p class="text-sm text-slate-500">Verifikasi surat, penuhi dari stok, atau panggil pendonor terdekat.</p>
@@ -153,7 +172,7 @@
                 </section>
 
                 <!-- pemindai -->
-                <section data-panel="pemindai" class="hidden space-y-5">
+                <section data-panel="scanner" class="hidden space-y-5">
                     <div>
                         <h2 class="font-bold text-xl text-slate-900">Pemindai Tiket</h2>
                         <p class="text-sm text-slate-500">Pindai QR tiket saat pendonor tiba untuk memulai skrining.</p>
@@ -187,7 +206,7 @@
                 </section>
 
                 <!-- pendonor -->
-                <section data-panel="pendonor" class="hidden space-y-5">
+                <section data-panel="donors" class="hidden space-y-5">
                     <div class="flex flex-col sm:flex-row sm:items-end justify-between gap-2">
                         <div>
                             <h2 class="font-bold text-xl text-slate-900">Data Pendonor</h2>
@@ -196,6 +215,40 @@
                         <span id="poolSummary" class="text-sm font-semibold text-slate-600"></span>
                     </div>
                     <div id="poolContainer" class="grid grid-cols-2 sm:grid-cols-4 gap-4"></div>
+                </section>
+
+                <!-- notifikasi -->
+                <section data-panel="notifications" class="hidden space-y-4">
+                    <nav class="text-xs font-medium text-slate-500 flex items-center gap-2" aria-label="Breadcrumb">
+                        <button data-view="stock" class="text-brand-600 hover:underline">Beranda</button>
+                        <i class="fa-solid fa-chevron-right text-[10px]"></i>
+                        <span class="text-slate-700">Notifikasi</span>
+                    </nav>
+                    <div class="flex flex-col sm:flex-row sm:items-end justify-between gap-3">
+                        <div>
+                            <h2 class="font-bold text-xl text-slate-900">Notifikasi</h2>
+                            <p id="notifSummary" class="text-sm text-slate-500"></p>
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <button data-push-toggle type="button" class="hidden h-10 px-3 rounded-xl border border-slate-300 text-sm font-semibold text-slate-700 hover:bg-slate-100 inline-flex items-center gap-2"><i class="fa-solid fa-bell-slash"></i><span data-push-label>Aktifkan notifikasi</span></button>
+                            <button id="notifRefresh" type="button" class="w-10 h-10 rounded-xl border border-slate-300 text-slate-600 hover:bg-slate-100" title="Muat ulang" aria-label="Muat ulang"><i class="fa-solid fa-rotate-right"></i></button>
+                            <button id="notifPageReadAll" type="button" class="btn-primary px-4 py-2.5 text-sm">Tandai semua dibaca</button>
+                        </div>
+                    </div>
+                    <div class="flex flex-wrap items-center gap-2">
+                        <label class="sr-only" for="notifPageSize">Jumlah per halaman</label>
+                        <select id="notifPageSize" class="inp !w-auto !py-2">
+                            <option value="10">10 entri</option>
+                            <option value="25">25 entri</option>
+                            <option value="50">50 entri</option>
+                        </select>
+                        <div class="flex rounded-xl border border-slate-300 overflow-hidden text-sm font-semibold" role="group" aria-label="Filter">
+                            <button data-notif-filter="false" class="px-3 py-2">Semua</button>
+                            <button data-notif-filter="true" class="px-3 py-2 border-l border-slate-300">Belum dibaca</button>
+                        </div>
+                    </div>
+                    <div id="notifPageList" class="space-y-3"></div>
+                    <div id="notifPager" class="flex items-center justify-between text-sm text-slate-500"></div>
                 </section>
 
             </div>
@@ -237,11 +290,11 @@
             </div>
             <label class="block"><span class="lbl">Jenis data</span>
                 <select name="dataset" class="inp">
-                    <option value="stok" data-hint="Posisi stok saat ini per komponen & golongan darah.">Stok darah saat ini</option>
-                    <option value="mutasi-stok" data-range="1" data-hint="Riwayat stok masuk, keluar, dan alokasi ke permintaan.">Riwayat mutasi stok</option>
-                    <option value="permintaan" data-range="1" data-hint="Permintaan darah ke faskes ini, termasuk nama pasien & nomor rekam medis.">Permintaan darah</option>
-                    <option value="tiket-donor" data-range="1" data-hint="Undangan, kedatangan, hasil skrining, dan pengambilan darah pendonor.">Tiket & skrining pendonor</option>
-                    <option value="mutasi-antarfaskes" data-range="1" data-hint="Permintaan mutasi stok masuk dan keluar dengan faskes lain.">Mutasi antarfaskes</option>
+                    <option value="stock" data-hint="Posisi stok saat ini per komponen & golongan darah.">Stok darah saat ini</option>
+                    <option value="stock-movements" data-range="1" data-hint="Riwayat stok masuk, keluar, dan alokasi ke permintaan.">Riwayat mutasi stok</option>
+                    <option value="requests" data-range="1" data-hint="Permintaan darah ke faskes ini, termasuk nama pasien & nomor rekam medis.">Permintaan darah</option>
+                    <option value="donor-tickets" data-range="1" data-hint="Undangan, kedatangan, hasil skrining, dan pengambilan darah pendonor.">Tiket & skrining pendonor</option>
+                    <option value="facility-transfers" data-range="1" data-hint="Permintaan mutasi stok masuk dan keluar dengan faskes lain.">Mutasi antarfaskes</option>
                 </select>
             </label>
             <p id="exportHint" class="text-xs text-slate-500 -mt-2"></p>
@@ -270,7 +323,7 @@
             </div>
             <label class="block"><span class="lbl">Jenis data</span>
                 <select name="dataset" class="inp">
-                    <option value="stok" data-hint="Stock opname: template berisi stok saat ini, cukup ubah kolom Jumlah sesuai hitungan fisik. Selisihnya dicatat otomatis sebagai mutasi stok.">Stok darah (stock opname)</option>
+                    <option value="stock" data-hint="Stock opname: template berisi stok saat ini, cukup ubah kolom Jumlah sesuai hitungan fisik. Selisihnya dicatat otomatis sebagai mutasi stok.">Stok darah (stock opname)</option>
                 </select>
             </label>
             <p id="importHint" class="text-xs text-slate-500 -mt-2"></p>
@@ -291,8 +344,9 @@
         <div id="screeningBody" class="bg-white rounded-3xl w-full max-w-md p-6 shadow-2xl"></div>
     </div>
 
-    <script src="js/store.js"></script>
-    <script src="js/ui.js"></script>
-    <script src="js/pages/faskes.js"></script>
+    <script src="/js/store.js"></script>
+    <script src="/js/ui.js"></script>
+    <script src="/js/push.js"></script>
+    <script src="/js/pages/facility.js"></script>
 </body>
 </html>

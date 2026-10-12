@@ -32,7 +32,7 @@ export const adminService = {
       const f = await tx.faskes.create({ data: input });
       const components: Component[] = ['PRC', 'TC', 'WB'];
       await tx.stock.createMany({ data: components.flatMap(component => BLOOD_TYPES.map(bloodType => ({ faskesId: f.id, component, bloodType, quantity: 0 }))) });
-      await audit(tx, `admin:${adminId}`, 'faskes.create', f.id);
+      await audit(tx, `admin:${adminId}`, 'faskes.create', f.id, { name: f.name }, { after: f });
       return f;
     });
   },
@@ -44,7 +44,7 @@ export const adminService = {
       await assertFaskesNameFree(tx, input.name, id);
       const f = await tx.faskes.update({ where: { id }, data: { ...input, address: input.address || null } });
       const changed = (['name', 'type', 'area', 'address', 'lat', 'lng'] as const).filter(k => before[k] !== f[k]);
-      await audit(tx, `admin:${adminId}`, 'faskes.update', id, { changed });
+      await audit(tx, `admin:${adminId}`, 'faskes.update', id, { name: f.name, changed }, { before, after: f });
       outbox.faskes.add(id);
       return f;
     });
@@ -67,7 +67,9 @@ export const adminService = {
         if (history) throw conflict('Faskes ini sudah punya riwayat permintaan, donasi, atau mutasi. Nonaktifkan saja agar riwayatnya tetap utuh.', 'HAS_HISTORY');
         // stocks and stock movements cascade with the faskes row
         await tx.faskes.delete({ where: { id } });
-        await audit(tx, `admin:${adminId}`, 'faskes.delete', id, { name: f.name, type: f.type });
+        const { _count, ...row } = f;
+        void _count;
+        await audit(tx, `admin:${adminId}`, 'faskes.delete', id, { name: f.name, type: f.type }, { before: row });
         return { deleted: true };
       });
     } catch (e) {
@@ -80,6 +82,7 @@ export const adminService = {
   // deactivation also stops its live calls, otherwise the engine keeps inviting donors to a faskes whose staff cannot log in
   async setFaskesActive(adminId: string, id: string, isActive: boolean) {
     const f = await runInTx(async tx => {
+      const prev = await tx.faskes.findUnique({ where: { id }, select: { isActive: true } });
       const updated = await tx.faskes.update({ where: { id }, data: { isActive } });
       if (!isActive) {
         await tx.stockTransfer.updateMany({
@@ -87,7 +90,7 @@ export const adminService = {
           data: { status: 'CANCELLED', note: 'Faskes dinonaktifkan' },
         });
       }
-      await audit(tx, `admin:${adminId}`, isActive ? 'faskes.activate' : 'faskes.deactivate', id);
+      await audit(tx, `admin:${adminId}`, isActive ? 'faskes.activate' : 'faskes.deactivate', id, { name: updated.name }, { before: prev, after: { isActive } });
       return updated;
     });
     if (!isActive) {
@@ -125,7 +128,7 @@ export const adminService = {
         },
         select: { id: true, name: true, email: true, role: true, faskesId: true },
       });
-      await audit(tx, `admin:${adminId}`, 'user.create', user.id);
+      await audit(tx, `admin:${adminId}`, 'user.create', user.id, { email: user.email }, { after: user });
       return user;
     });
   },
@@ -162,20 +165,25 @@ export const adminService = {
         data: { name: input.name, email, role: input.role, faskesId, ...(passwordHash ? { passwordHash } : {}), ...(revoke ? { tokenVersion: { increment: 1 } } : {}) },
         select: { id: true, name: true, email: true, role: true, faskesId: true },
       });
-      await audit(tx, `admin:${adminId}`, 'user.update', id, { changed });
+      const { passwordHash: _hash, ...beforeRow } = before;
+      void _hash;
+      await audit(tx, `admin:${adminId}`, 'user.update', id, { email: user.email, changed }, {
+        before: beforeRow,
+        after: { ...user, ...(passwordHash ? { password: 'changed' } : {}) },
+      });
       return { ...user, sessionsRevoked: revoke, self: id === adminId };
     });
   },
 
   async deleteUser(adminId: string, id: string) {
     if (id === adminId) throw badRequest('Tidak bisa menghapus akun sendiri');
-    const user = await prisma.user.findUnique({ where: { id }, select: { email: true, name: true, role: true } });
+    const user = await prisma.user.findUnique({ where: { id }, select: { id: true, email: true, name: true, role: true, faskesId: true, isActive: true } });
     if (!user) throw notFound('Akun tidak ditemukan');
     return runInTx(async tx => {
       await keepAnotherSuperAdmin(tx, id);
       await tx.user.delete({ where: { id } });
       // the audit trail keeps who the deleted actor id belonged to
-      await audit(tx, `admin:${adminId}`, 'user.delete', id, user);
+      await audit(tx, `admin:${adminId}`, 'user.delete', id, { email: user.email, name: user.name, role: user.role }, { before: user });
       return { deleted: true };
     });
   },
@@ -188,18 +196,9 @@ export const adminService = {
       const user = await tx.user.update({
         where: { id }, data: { isActive, ...(isActive ? {} : { tokenVersion: { increment: 1 } }) }, select: { id: true, isActive: true },
       });
-      await audit(tx, `admin:${adminId}`, isActive ? 'user.activate' : 'user.deactivate', id);
+      await audit(tx, `admin:${adminId}`, isActive ? 'user.activate' : 'user.deactivate', id, undefined, { before: { isActive: !isActive }, after: { isActive } });
       return user;
     });
-  },
-
-  async auditLogs(page: number, pageSize: number, actor?: string) {
-    const where = actor ? { actor: { contains: actor } } : {};
-    const [items, total] = await Promise.all([
-      prisma.auditLog.findMany({ where, orderBy: { createdAt: 'desc' }, skip: (page - 1) * pageSize, take: pageSize }),
-      prisma.auditLog.count({ where }),
-    ]);
-    return { items, total, page, pageSize };
   },
 
   // impact numbers for the dinkes / jury slide: volume, outcome split, median time to fulfil

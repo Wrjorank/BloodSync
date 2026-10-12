@@ -275,7 +275,12 @@ const schemas: Record<string, Schema> = {
   UserSaved: obj({ id: str(), name: str(), email: str(), role: ref('UserRole'), faskesId: nullable(str()) }),
   AuditLog: obj({
     id: str(), actor: str({ example: 'staff:3f1c...' }), action: str({ example: 'request.approve' }), ref: nullable(str()),
-    meta: nullable(obj({}, [], { additionalProperties: true })), ip: nullable(str()), createdAt: date(),
+    event: str({ example: 'UPDATED' }), subjectType: nullable(str({ example: 'BloodRequest' })),
+    user: obj({ type: str({ example: 'staff' }), label: str(), email: nullable(str()), role: nullable(str()), faskes: nullable(str()) }),
+    ip: nullable(str()), browser: nullable(str({ example: 'Edge 155.0.0.0' })), platform: nullable(str({ example: 'Windows' })), device: nullable(str({ example: 'desktop' })),
+    method: nullable(str()), url: nullable(str()), userAgent: nullable(str()),
+    meta: nullable(obj({}, [], { additionalProperties: true })), before: nullable(obj({}, [], { additionalProperties: true })), after: nullable(obj({}, [], { additionalProperties: true })),
+    hasData: { type: 'boolean' }, createdAt: date(),
   }),
   Overview: obj({
     requests: obj({}, [], { additionalProperties: int(), description: 'Jumlah permintaan per RequestStatus' }),
@@ -311,7 +316,7 @@ Hubungkan ke origin yang sama (path default \`/socket.io\`) dengan \`auth: { tok
 
 | Event (server → client) | Diterima oleh | Payload | Lalu panggil |
 |---|---|---|---|
-| \`request:updated\` | keluarga, petugas faskes, pemegang kartu | \`{ id, status }\` | \`GET /requests/{id}\` atau \`GET /faskes/me/requests/{id}\` |
+| \`request:updated\` | keluarga, petugas faskes, pemegang kartu | \`{ id, status }\` | \`GET /requests/{id}\` atau \`GET /facility/me/requests/{id}\` |
 | \`faskes:updated\` | petugas faskes | \`{ id }\` | stok / permintaan / kedatangan |
 | \`donor:updated\` | pendonor | \`{ id }\` | \`GET /donors/me\` |
 | \`invite:new\` | pendonor | \`{ ticketId, requestId }\` | \`GET /donors/me\` |
@@ -384,6 +389,13 @@ export const openApiSpec = {
         responses: { 200: ok(ref('OtpVerifyResult'), 'Nomor terverifikasi', 'Nomor terverifikasi'), 400: errRef('BadRequest'), 403: errRef('Forbidden'), 429: errRef('TooMany') },
       },
     },
+    '/auth/logout': {
+      post: {
+        tags: ['Auth'], summary: 'Catat keluar (staff/admin) di log aktivitas; token tetap dibuang di sisi klien',
+        security: [{ staffAuth: [] }, { adminAuth: [] }],
+        responses: { 200: ok(nullable(obj({}))) },
+      },
+    },
     '/auth/me': {
       get: {
         tags: ['Auth'], summary: 'Cek sesi token yang tersimpan',
@@ -397,7 +409,7 @@ export const openApiSpec = {
     '/public/meta': {
       get: { tags: ['Public'], summary: 'Data referensi (golongan darah, komponen, kecamatan, ambang skrining)', security: [], responses: { 200: ok(ref('Meta')) } },
     },
-    '/public/faskes': {
+    '/public/facilities': {
       get: { tags: ['Public'], summary: 'Daftar faskes aktif', description: 'Untuk form pengajuan pilih faskes bertipe RS.', security: [], responses: { 200: ok(arr(ref('FaskesPublic'))) } },
     },
     '/public/cards/{token}': {
@@ -424,7 +436,7 @@ export const openApiSpec = {
                 patientName: str({ minLength: 2, maxLength: 120 }),
                 medicalRecordNo: str({ minLength: 1, maxLength: 40 }),
                 ward: str({ minLength: 1, maxLength: 80, example: 'ICU Lt. 3' }),
-                faskesId: str({ description: 'ID faskes bertipe RS dari GET /public/faskes' }),
+                faskesId: str({ description: 'ID faskes bertipe RS dari GET /public/facilities' }),
                 bloodType: ref('BloodType'),
                 component: ref('Component'),
                 bagsNeeded: int({ minimum: 1, maximum: 10 }),
@@ -544,13 +556,13 @@ export const openApiSpec = {
     },
 
     // ================= faskes staff =================
-    '/faskes/me': {
+    '/facility/me': {
       get: { tags: ['Faskes - Stok'], summary: 'Profil faskes petugas', security: staff, responses: { 200: ok(ref('Faskes')), 401: errRef('Unauthorized'), 403: errRef('Forbidden') } },
     },
-    '/faskes/me/stock': {
+    '/facility/me/stock': {
       get: { tags: ['Faskes - Stok'], summary: 'Matriks stok komponen × golongan darah', security: staff, responses: { 200: ok(arr(ref('StockRow'))), 401: errRef('Unauthorized'), 403: errRef('Forbidden') } },
     },
-    '/faskes/me/stock/adjust': {
+    '/facility/me/stock/adjust': {
       post: {
         tags: ['Faskes - Stok'], summary: 'Koreksi stok manual (masuk / keluar)', security: staff,
         requestBody: json(obj({
@@ -561,30 +573,30 @@ export const openApiSpec = {
         responses: { 200: ok(obj({ quantity: int({ description: 'Stok setelah koreksi' }) }), 'Diperbarui', 'Stok diperbarui'), ...common },
       },
     },
-    '/faskes/me/movements': {
+    '/facility/me/movements': {
       get: {
         tags: ['Faskes - Stok'], summary: 'Riwayat mutasi stok', security: staff,
         parameters: [{ name: 'limit', in: 'query', schema: int({ minimum: 1, maximum: 100, default: 10 }) }],
         responses: { 200: ok(arr(ref('Movement'))), ...common },
       },
     },
-    '/faskes/me/donor-pool': {
+    '/facility/me/donor-pool': {
       get: { tags: ['Faskes - Stok'], summary: 'Pendonor terdaftar di sekitar faskes (radius maks)', security: staff, responses: { 200: ok(ref('DonorPool')), 401: errRef('Unauthorized'), 403: errRef('Forbidden') } },
     },
-    '/faskes/me/arrivals': {
+    '/facility/me/arrivals': {
       get: { tags: ['Faskes - Tiket Donor'], summary: 'Pendonor yang sedang menuju / sudah tiba', security: staff, responses: { 200: ok(arr(ref('Arrival'))), 401: errRef('Unauthorized'), 403: errRef('Forbidden') } },
     },
-    '/faskes/me/requests': {
+    '/facility/me/requests': {
       get: {
         tags: ['Faskes - Permintaan'], summary: 'Daftar permintaan darah ke faskes ini', security: staff,
         parameters: [{ name: 'scope', in: 'query', schema: str({ enum: ['active', 'history'], default: 'active' }), description: 'active = maks 100, history = 50 terbaru' }],
         responses: { 200: ok(arr(ref('StaffRequest'))), ...common },
       },
     },
-    '/faskes/me/requests/{id}': {
+    '/facility/me/requests/{id}': {
       get: { tags: ['Faskes - Permintaan'], summary: 'Detail permintaan', security: staff, parameters: [idParam], responses: { 200: ok(ref('StaffRequest')), ...common, 404: errRef('NotFound') } },
     },
-    '/faskes/me/requests/{id}/letter': {
+    '/facility/me/requests/{id}/letter': {
       get: {
         tags: ['Faskes - Permintaan'], summary: 'Unduh surat pengantar dokter', description: 'Setiap akses dicatat di audit log.', security: staff, parameters: [idParam],
         responses: {
@@ -593,39 +605,39 @@ export const openApiSpec = {
         },
       },
     },
-    '/faskes/me/requests/{id}/stock-options': {
+    '/facility/me/requests/{id}/stock-options': {
       get: {
         tags: ['Faskes - Permintaan'], summary: 'Opsi stok kompatibel: stok sendiri dan faskes lain terdekat', security: staff, parameters: [idParam],
         responses: { 200: ok(ref('StockOptions')), ...common, 404: errRef('NotFound') },
       },
     },
-    '/faskes/me/requests/{id}/approve': {
+    '/facility/me/requests/{id}/approve': {
       post: {
         tags: ['Faskes - Permintaan'], summary: 'Setujui pengajuan (PENDING_VERIFICATION → APPROVED)', security: staff, parameters: [idParam],
         responses: { 200: ok(ref('StatusResult'), 'Disetujui', 'Pengajuan disetujui'), ...common, 409: errRef('Conflict') },
       },
     },
-    '/faskes/me/requests/{id}/reject': {
+    '/facility/me/requests/{id}/reject': {
       post: {
         tags: ['Faskes - Permintaan'], summary: 'Tolak pengajuan', security: staff, parameters: [idParam],
         requestBody: json(obj({ reason: str({ minLength: 3, maxLength: 200, example: 'Surat pengantar tidak terbaca' }) })),
         responses: { 200: ok(ref('StatusResult'), 'Ditolak', 'Pengajuan ditolak'), ...common, 409: errRef('Conflict') },
       },
     },
-    '/faskes/me/requests/{id}/allocate': {
+    '/facility/me/requests/{id}/allocate': {
       post: {
         tags: ['Faskes - Permintaan'], summary: 'Alokasikan stok internal yang kompatibel', security: staff, parameters: [idParam],
         responses: { 200: ok(obj({ allocated: int() }), 'Dialokasikan', 'Stok dialokasikan'), ...common, 409: errRef('Conflict') },
       },
     },
-    '/faskes/me/requests/{id}/transfer': {
+    '/facility/me/requests/{id}/transfer': {
       post: {
         tags: ['Faskes - Permintaan'], summary: 'Minta mutasi stok dari faskes lain', description: 'Stok baru berpindah setelah faskes sumber menyetujui.', security: staff, parameters: [idParam],
         requestBody: json(obj({ fromFaskesId: str() })),
         responses: { 201: ok(obj({ transferId: str(), quantity: int(), source: str() }), 'Dikirim', 'Permintaan mutasi dikirim, menunggu persetujuan faskes sumber'), ...common, 409: errRef('Conflict') },
       },
     },
-    '/faskes/me/requests/{id}/dispatch': {
+    '/facility/me/requests/{id}/dispatch': {
       post: {
         tags: ['Faskes - Permintaan'], summary: 'Mulai panggilan darurat ke pendonor (APPROVED → BROADCASTING)',
         description: 'Radius bertambah otomatis setiap `escalateMinutes` hingga radius maksimum. `allowCompatible` hanya berlaku untuk komponen PRC.',
@@ -642,31 +654,31 @@ export const openApiSpec = {
         },
       },
     },
-    '/faskes/me/requests/{id}/close': {
+    '/facility/me/requests/{id}/close': {
       post: {
         tags: ['Faskes - Permintaan'], summary: 'Tutup permintaan aktif', description: 'Pendonor yang sedang menuju diberi tahu agar tidak datang.', security: staff, parameters: [idParam],
         responses: { 200: ok(ref('StatusResult'), 'Ditutup', 'Permintaan ditutup'), ...common, 409: errRef('Conflict') },
       },
     },
-    '/faskes/me/transfers': {
+    '/facility/me/transfers': {
       get: {
         tags: ['Faskes - Permintaan'], summary: 'Mutasi antarfaskes', description: '`incoming` = permintaan ke faskes ini yang menunggu keputusan; `outgoing` = 10 permintaan terakhir dari faskes ini.', security: staff,
         responses: { 200: ok(obj({ incoming: arr(ref('Transfer')), outgoing: arr(ref('Transfer')) })), 401: errRef('Unauthorized'), 403: errRef('Forbidden') },
       },
     },
-    '/faskes/me/transfers/{id}/approve': {
+    '/facility/me/transfers/{id}/approve': {
       post: {
         tags: ['Faskes - Permintaan'], summary: 'Setujui mutasi (sebagai faskes sumber)', description: 'Jika stok habis atau kebutuhan sudah tertutup, status menjadi CANCELLED.', security: staff, parameters: [idParam],
         responses: { 200: ok(obj({ status: str({ enum: ['APPROVED', 'CANCELLED'] }), moved: int() }), 'Diproses', 'Mutasi disetujui'), ...common, 404: errRef('NotFound'), 409: errRef('Conflict') },
       },
     },
-    '/faskes/me/transfers/{id}/reject': {
+    '/facility/me/transfers/{id}/reject': {
       post: {
         tags: ['Faskes - Permintaan'], summary: 'Tolak mutasi', security: staff, parameters: [idParam],
         responses: { 200: ok(obj({ status: str({ enum: ['REJECTED'] }), moved: int({ example: 0 }) }), 'Ditolak', 'Mutasi ditolak'), ...common, 404: errRef('NotFound'), 409: errRef('Conflict') },
       },
     },
-    '/faskes/me/tickets/scan': {
+    '/facility/me/tickets/scan': {
       post: {
         tags: ['Faskes - Tiket Donor'], summary: 'Scan QR tiket pendonor (check-in)',
         description: 'Menerima `BLOODSYNC:TKT-XXXXXX`, `TKT-XXXXXX`, atau `XXXXXX`. Tiket RESERVED berubah menjadi ARRIVED; ARRIVED/SCREENED hanya ditampilkan.',
@@ -675,7 +687,7 @@ export const openApiSpec = {
         responses: { 200: ok(ref('TicketDetail'), 'Tiket valid', 'Tiket valid'), ...common, 404: errRef('NotFound'), 409: errRef('Conflict') },
       },
     },
-    '/faskes/me/tickets/{id}/screening': {
+    '/facility/me/tickets/{id}/screening': {
       post: {
         tags: ['Faskes - Tiket Donor'], summary: 'Catat hasil skrining (tiket ARRIVED)', description: 'Ambang lolos ada di `GET /public/meta` → `screening`.', security: staff, parameters: [idParam],
         requestBody: json(obj({
@@ -685,33 +697,33 @@ export const openApiSpec = {
         responses: { 200: ok(obj({ pass: bool(), reasons: arr(str()) }), 'Tercatat', 'Lolos skrining'), ...common, 404: errRef('NotFound'), 409: errRef('Conflict') },
       },
     },
-    '/faskes/me/tickets/{id}/collect': {
+    '/facility/me/tickets/{id}/collect': {
       post: {
         tags: ['Faskes - Tiket Donor'], summary: 'Catat pengambilan darah (tiket SCREENED)', description: 'Jika permintaan sudah tidak butuh, kantong masuk stok (`toStock=true`).', security: staff, parameters: [idParam],
         responses: { 200: ok(obj({ collected: bool(), toStock: bool(), remaining: int(), newBadges: arr(str()) }), 'Tercatat', 'Pengambilan darah tercatat'), ...common, 404: errRef('NotFound'), 409: errRef('Conflict') },
       },
     },
-    '/faskes/me/tickets/{id}/no-show': {
+    '/facility/me/tickets/{id}/no-show': {
       post: {
         tags: ['Faskes - Tiket Donor'], summary: 'Lepas slot pendonor yang tidak datang (tiket RESERVED)', security: staff, parameters: [idParam],
         responses: { 200: ok(obj({ status: str({ enum: ['NO_SHOW'] }) }), 'Dilepas', 'Slot dilepas'), ...common, 404: errRef('NotFound'), 409: errRef('Conflict') },
       },
     },
-    '/faskes/me/export/{dataset}': {
+    '/facility/me/export/{dataset}': {
       get: {
         tags: ['Faskes - Export/Import'], summary: 'Export data faskes ke Excel', security: staff,
         parameters: [{ name: 'dataset', in: 'path', required: true, schema: str({ enum: [...STAFF_DATASETS] }) }, ...exportQuery],
         responses: { 200: xlsxFile('File .xlsx', { 'X-Export-Rows': { schema: int(), description: 'Jumlah baris' }, 'X-Export-Truncated': { schema: str({ enum: ['1'] }), description: 'Ada bila hasil dipotong pada 10.000 baris terbaru (file juga memuat baris catatan di bawah)' } }), ...common, 429: errRef('TooMany') },
       },
     },
-    '/faskes/me/import/{dataset}/template': {
+    '/facility/me/import/{dataset}/template': {
       get: {
         tags: ['Faskes - Export/Import'], summary: 'Unduh template import', security: staff,
         parameters: [{ name: 'dataset', in: 'path', required: true, schema: str({ enum: [...STAFF_IMPORTS] }) }],
         responses: { 200: xlsxFile('Template .xlsx'), ...common },
       },
     },
-    '/faskes/me/import/{dataset}': {
+    '/facility/me/import/{dataset}': {
       post: {
         tags: ['Faskes - Export/Import'], summary: 'Import Excel (preview lalu commit)', security: staff,
         description: 'Stock opname: template berisi kolom "Stok sistem (jangan diubah)" (stok saat unduh) dan Jumlah (hitungan fisik). Yang diterapkan adalah selisih Jumlah - Stok sistem ke stok terkini; baris yang membuat stok minus ditolak (422 IMPORT_INVALID saat commit). File template lama tanpa kolom Stok sistem ditolak 400 TEMPLATE_OUTDATED. Kolom preview: Komponen, Golongan, Stok sistem saat unduh, Hitungan fisik, Selisih, Stok sekarang, Sesudah.',
@@ -728,7 +740,7 @@ export const openApiSpec = {
     '/admin/overview': {
       get: { tags: ['Admin'], summary: 'Ringkasan dampak', security: admin, responses: { 200: ok(ref('Overview')), 401: errRef('Unauthorized'), 403: errRef('Forbidden') } },
     },
-    '/admin/faskes': {
+    '/admin/facilities': {
       get: { tags: ['Admin'], summary: 'Daftar semua faskes', security: admin, responses: { 200: ok(arr(ref('FaskesWithCount'))), 401: errRef('Unauthorized'), 403: errRef('Forbidden') } },
       post: {
         tags: ['Admin'], summary: 'Tambah faskes', description: 'Baris stok 0 dibuat otomatis untuk semua komponen × golongan.', security: admin,
@@ -736,7 +748,7 @@ export const openApiSpec = {
         responses: { 201: ok(ref('Faskes'), 'Ditambahkan', 'Faskes ditambahkan'), ...common, 409: errRef('Conflict') },
       },
     },
-    '/admin/faskes/{id}': {
+    '/admin/facilities/{id}': {
       patch: {
         tags: ['Admin'], summary: 'Ubah faskes', security: admin, parameters: [idParam], requestBody: json(faskesBody),
         responses: { 200: ok(ref('Faskes'), 'Diperbarui', 'Faskes diperbarui'), ...common, 404: errRef('NotFound'), 409: errRef('Conflict') },
@@ -746,7 +758,7 @@ export const openApiSpec = {
         responses: { 200: ok(obj({ deleted: bool({ example: true }) }), 'Dihapus', 'Faskes dihapus'), ...common, 404: errRef('NotFound'), 409: errRef('Conflict') },
       },
     },
-    '/admin/faskes/{id}/active': {
+    '/admin/facilities/{id}/active': {
       patch: {
         tags: ['Admin'], summary: 'Aktif / nonaktifkan faskes', description: 'Menonaktifkan juga menutup permintaan aktif dan membatalkan mutasi yang menunggu.', security: admin, parameters: [idParam],
         requestBody: json(obj({ isActive: bool() })),
@@ -790,15 +802,28 @@ export const openApiSpec = {
         responses: { 200: ok(obj({ id: str(), isActive: bool() }), 'Diperbarui', 'Status akun diperbarui'), ...common, 404: errRef('NotFound'), 409: errRef('Conflict') },
       },
     },
-    '/admin/audit': {
+    '/admin/audit-logs': {
       get: {
-        tags: ['Admin'], summary: 'Audit log (terbaru dulu)', security: admin,
+        tags: ['Admin'], summary: 'Log aktivitas: siapa, dari mana (IP, browser, platform), aksi apa, data apa yang berubah', security: admin,
         parameters: [
           { name: 'page', in: 'query', schema: int({ minimum: 1, default: 1 }) },
-          { name: 'pageSize', in: 'query', schema: int({ minimum: 1, maximum: 100, default: 25 }) },
-          { name: 'actor', in: 'query', schema: str({ maxLength: 80 }), description: 'Cari sebagian teks aktor' },
+          { name: 'pageSize', in: 'query', schema: int({ minimum: 1, maximum: 100, default: 10 }) },
+          { name: 'search', in: 'query', schema: str({ maxLength: 120 }), description: 'Cari di aktor (termasuk email/nama akun), aksi, IP, browser, platform, URL, model' },
+          { name: 'event', in: 'query', schema: str({ enum: ['LOGIN', 'LOGIN_FAILED', 'LOGOUT', 'CREATED', 'UPDATED', 'DELETED', 'EXPORTED', 'IMPORTED', 'VIEWED', 'ERROR'] }) },
+          { name: 'actorType', in: 'query', schema: str({ enum: ['admin', 'staff', 'family', 'donor', 'guest'] }) },
+          { name: 'from', in: 'query', schema: str({ format: 'date' }), description: 'Tanggal WIB, inklusif' },
+          { name: 'to', in: 'query', schema: str({ format: 'date' }), description: 'Tanggal WIB, inklusif' },
+          { name: 'sort', in: 'query', schema: str({ enum: ['createdAt', 'event', 'actor', 'ip', 'browser', 'platform', 'subjectType'], default: 'createdAt' }) },
+          { name: 'dir', in: 'query', schema: str({ enum: ['asc', 'desc'], default: 'desc' }) },
         ],
         responses: { 200: ok(obj({ items: arr(ref('AuditLog')), total: int(), page: int(), pageSize: int() })), ...common },
+      },
+    },
+    '/admin/audit-logs/{id}': {
+      get: {
+        tags: ['Admin'], summary: 'Detail satu log, termasuk data sebelum (before) dan field yang berubah (after)', security: admin,
+        parameters: [{ name: 'id', in: 'path', required: true, schema: str({ format: 'uuid' }) }],
+        responses: { 200: ok(ref('AuditLog')), ...common },
       },
     },
     '/admin/export/{dataset}': {
@@ -818,7 +843,7 @@ export const openApiSpec = {
     '/admin/import/{dataset}': {
       post: {
         tags: ['Admin - Export/Import'], summary: 'Import Excel (preview lalu commit)',
-        description: 'Commit dataset `akun` mengembalikan file .xlsx berisi kata sandi awal (hanya sekali). Commit `faskes` dan semua preview mengembalikan JSON.',
+        description: 'Commit dataset `accounts` mengembalikan file .xlsx berisi kata sandi awal (hanya sekali). Commit `facilities` dan semua preview mengembalikan JSON.',
         security: admin,
         parameters: [{ name: 'dataset', in: 'path', required: true, schema: str({ enum: [...ADMIN_IMPORTS] }) }, commitQuery],
         requestBody: { required: true, content: { 'multipart/form-data': { schema: obj({ file: str({ format: 'binary', description: '.xlsx maks 2 MB' }) }) } } },

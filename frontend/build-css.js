@@ -7,10 +7,10 @@ const path = require('path');
 const CLI = require.resolve('tailwindcss/lib/cli.js');
 const PAGES = {
     index: [],
-    pasien: ['js/pages/pasien.js'],
-    pendonor: ['js/pages/pendonor.js'],
-    kartu: ['js/pages/kartu.js'],
-    faskes: ['js/pages/faskes.js'],
+    patient: ['js/pages/patient.js'],
+    donor: ['js/pages/donor.js'],
+    card: ['js/pages/card.js'],
+    facility: ['js/pages/facility.js'],
     admin: ['js/pages/admin.js'],
 };
 

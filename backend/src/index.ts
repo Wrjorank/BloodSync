@@ -1,5 +1,4 @@
 import 'express-async-errors';
-import path from 'path';
 import express from 'express';
 import cors from 'cors';
 import { createServer } from 'http';
@@ -8,7 +7,9 @@ import { env } from './config/env';
 import prisma from './config/prisma';
 import { connectRedis, disconnectRedis, redisStatus } from './config/redis';
 import routes from './routes';
+import pages from './routes/pages';
 import { authenticate } from './middlewares/auth';
+import { requestContext } from './middlewares/requestContext';
 import { errorHandler, notFoundHandler } from './middlewares/errorHandler';
 import { setupSocket } from './socket';
 import { startEngine, stopEngine } from './jobs/engine';
@@ -23,6 +24,7 @@ const io = new Server(httpServer, { cors: { origin: corsOrigin } });
 app.disable('x-powered-by');
 app.set('trust proxy', env.trustProxy);
 app.use(cors({ origin: corsOrigin, exposedHeaders: ['Content-Disposition', 'X-Export-Rows', 'X-Export-Truncated', 'X-Import-Rows'] }));
+app.use(requestContext);
 app.use(express.json({ limit: '100kb' }));
 app.use((_req, res, next) => {
   res.setHeader('X-Content-Type-Options', 'nosniff');
@@ -37,7 +39,8 @@ app.use((_req, res, next) => {
     "font-src 'self' https://fonts.gstatic.com",
     "img-src 'self' data: blob:",
     "media-src 'self' blob:",
-    "connect-src 'self'",
+    // firebase messaging fetches its push token from these two google endpoints
+    "connect-src 'self' https://firebaseinstallations.googleapis.com https://fcmregistrations.googleapis.com",
     "frame-ancestors 'none'",
     "object-src 'none'",
     "base-uri 'self'",
@@ -64,10 +67,7 @@ if (env.enableApiDocs) {
 app.use('/api', authenticate, routes);
 app.use('/api', notFoundHandler);
 
-// serves the frontend so pages and api share one origin. frontend/ holds only public files;
-// backend/ and the uploaded letters live outside it and are never reachable from here
-const FRONTEND_ROOT = path.resolve(__dirname, '../../frontend');
-app.use(express.static(FRONTEND_ROOT, { dotfiles: 'ignore', index: 'index.html' }));
+app.use(pages);
 
 app.use(errorHandler);
 

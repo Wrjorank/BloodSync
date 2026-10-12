@@ -1,14 +1,18 @@
 // admin.js — super admin: impact summary, faskes licensing, staff accounts, audit log
-const audit  = { page: 1, actor: '', total: 0, pageSize: 15, seq: 0 };
+const audit  = { page: 1, pageSize: 10, search: '', filters: {}, sort: 'createdAt', dir: 'desc', total: 0, seq: 0 };
 const faskes_ = { page: 1, pageSize: 15, data: [], q: '' };
 const users_  = { page: 1, pageSize: 15, data: [], q: '' };
 
 const VIEWS = {
-    ringkasan: ['Ringkasan', 'Dampak BloodSync secara keseluruhan'],
-    faskes: ['Fasilitas Kesehatan', 'Perizinan rumah sakit & UDD PMI'],
-    akun: ['Akun Petugas', 'Kelola akses petugas faskes dan admin'],
-    audit: ['Audit Log', 'Jejak perubahan data sistem']
+    overview: ['Ringkasan', 'Dampak BloodSync secara keseluruhan'],
+    facilities: ['Fasilitas Kesehatan', 'Perizinan rumah sakit & UDD PMI'],
+    accounts: ['Akun Petugas', 'Kelola akses petugas faskes dan admin'],
+    'audit-log': ['Log Aktivitas', 'Siapa melakukan apa, dari mana, dan kapan']
 };
+// views lived in the hash before they moved to the path (/secretgate19#akun)
+const route = viewRouter(Object.keys(VIEWS), 'overview', { ringkasan: 'overview', faskes: 'facilities', akun: 'accounts', audit: 'audit-log' });
+let currentView = 'overview';
+let wantedView = null;
 let unsubscribe = null;
 let loadSeq = 0;
 
@@ -19,11 +23,11 @@ const STATUS_COLOR = {
 
 document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('loginForm').addEventListener('submit', onLogin);
-    document.getElementById('btnLogout').addEventListener('click', logout);
-    document.getElementById('btnLogoutMobile').addEventListener('click', logout);
+    document.getElementById('btnLogout').addEventListener('click', signOut);
+    document.getElementById('btnLogoutMobile').addEventListener('click', signOut);
 
-    document.querySelectorAll('[data-view]').forEach(b => b.addEventListener('click', () => showView(b.dataset.view)));
-    document.querySelectorAll('[data-go]').forEach(b => b.addEventListener('click', () => showView(b.dataset.go)));
+    document.querySelectorAll('[data-view]').forEach(b => b.addEventListener('click', () => showView(b.dataset.view, true)));
+    document.querySelectorAll('[data-go]').forEach(b => b.addEventListener('click', () => showView(b.dataset.go, true)));
     document.querySelectorAll('[data-open]').forEach(b => b.addEventListener('click', () => document.getElementById(b.dataset.open).showModal()));
     document.querySelectorAll('dialog').forEach(d => {
         d.querySelectorAll('[data-close]').forEach(b => b.addEventListener('click', () => d.close()));
@@ -31,8 +35,8 @@ document.addEventListener('DOMContentLoaded', () => {
     });
     const header = document.querySelector('main > header');
     autoHideHeader(header, header.nextElementSibling);
-    window.addEventListener('hashchange', () => showView(location.hash.slice(1)));
-    showView(location.hash.slice(1));
+    window.addEventListener('popstate', () => showView(route.current()));
+    showView(route.current());
 
     document.getElementById('faskesSearch').addEventListener('input', (e) => { faskes_.q = e.target.value.trim().toLowerCase(); faskes_.page = 1; renderFaskes(); });
     document.getElementById('usersSearch').addEventListener('input', (e) => { users_.q = e.target.value.trim().toLowerCase(); users_.page = 1; renderUsers(); });
@@ -45,12 +49,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
     document.getElementById('faskesTable').addEventListener('click', onTableClick);
     document.getElementById('usersTable').addEventListener('click', onTableClick);
-    document.getElementById('auditFilter').addEventListener('submit', (e) => {
-        e.preventDefault();
-        audit.actor = document.getElementById('auditActor').value.trim();
-        audit.page = 1;
-        loadAudit();
-    });
+    setupAudit();
 
     // Pagination controls — faskes
     document.getElementById('faskesPrev').addEventListener('click', () => { faskes_.page--; renderFaskes(); });
@@ -70,23 +69,11 @@ document.addEventListener('DOMContentLoaded', () => {
         renderUsers();
     });
 
-    // Pagination controls — audit
-    document.getElementById('auditPrev').addEventListener('click', () => { audit.page = Math.max(1, audit.page - 1); loadAudit(); });
-    document.getElementById('auditNext').addEventListener('click', () => {
-        audit.page = Math.min(Math.max(1, Math.ceil(audit.total / audit.pageSize)), audit.page + 1);
-        loadAudit();
-    });
-    document.getElementById('auditPageSize').addEventListener('change', (e) => {
-        audit.pageSize = Number(e.target.value);
-        audit.page = 1;
-        loadAudit();
-    });
-
     // the export dialog opens on the dataset of the current view
     setupExport({
         download: store.admin.export,
-        pick: () => ({ ringkasan: 'permintaan', faskes: 'faskes', akun: 'akun', audit: 'audit' })[location.hash.slice(1)] || 'permintaan',
-        extra: (dataset) => (dataset === 'audit' ? { actor: audit.actor } : {})
+        pick: () => ({ overview: 'requests', facilities: 'facilities', accounts: 'accounts', 'audit-log': 'audit-log' })[currentView] || 'requests',
+        extra: (dataset) => (dataset === 'audit-log' ? { actor: audit.search } : {})
     });
     setupImport({
         template: store.admin.importTemplate,
@@ -120,6 +107,12 @@ async function onLogin(e) {
     });
 }
 
+// the button: the server records the sign-out first, then the session is dropped
+async function signOut() {
+    await store.logout('admin');
+    logout();
+}
+
 function logout() {
     unsubscribe?.();
     unsubscribe = null;
@@ -133,20 +126,30 @@ function logout() {
 
 function showLogin(show) {
     document.getElementById('loginView').classList.toggle('hidden', !show);
+    // the view asked for in the url is kept across the login screen, then restored
+    if (show) {
+        wantedView = route.current();
+        route.reset();
+    } else {
+        showView(wantedView || route.current());
+        wantedView = null;
+    }
     // keep keyboard focus inside the overlay
     document.querySelectorAll('body > aside, body > main').forEach(el => { el.inert = show; });
 }
 
-function showView(name) {
-    if (!VIEWS[name]) name = 'ringkasan';
+function showView(name, push = false) {
+    if (!Object.hasOwn(VIEWS, name)) name = 'overview';
+    currentView = name;
     // each view starts at the top, which also brings a hidden header back
     document.querySelector('main > header')?.nextElementSibling?.scrollTo(0, 0);
     document.querySelectorAll('[data-panel]').forEach(p => p.classList.toggle('hidden', p.dataset.panel !== name));
     document.querySelectorAll('[data-view]').forEach(b => b.classList.toggle('active', b.dataset.view === name));
-    document.getElementById('btnBack').classList.toggle('hidden', name === 'ringkasan');
+    document.getElementById('btnBack').classList.toggle('hidden', name === 'overview');
     document.getElementById('viewTitle').textContent = VIEWS[name][0];
     document.getElementById('viewDesc').textContent = VIEWS[name][1];
-    if (location.hash.slice(1) !== name) history.replaceState(null, '', `#${name}`);
+    // the login screen keeps a clean url; the view only lands in the path once signed in
+    if (session.get('admin')) route.go(name, push);
 }
 
 function start() {
@@ -327,31 +330,196 @@ function renderUsers() {
         </tr>`).join('') : emptyRow(6, users_.q ? 'Tidak ada akun yang cocok.' : 'Belum ada akun.');
 }
 
-// rapid paging overlaps requests; only the newest one renders
+// ---------- activity log ----------
+
+const EVENT_STYLE = {
+    LOGIN: 'bg-emerald-600 text-white',
+    LOGIN_FAILED: 'bg-red-100 text-red-700',
+    LOGOUT: 'bg-slate-200 text-slate-700',
+    CREATED: 'bg-blue-600 text-white',
+    UPDATED: 'bg-sky-500 text-white',
+    DELETED: 'bg-red-600 text-white',
+    EXPORTED: 'bg-violet-100 text-violet-700',
+    IMPORTED: 'bg-indigo-100 text-indigo-700',
+    VIEWED: 'bg-amber-100 text-amber-800',
+    ERROR: 'bg-red-600 text-white'
+};
+const ROLE_LABEL = { SUPER_ADMIN: 'super admin', FASKES_STAFF: 'petugas faskes' };
+const SUBJECT_LABEL = {
+    Facility: 'Faskes', User: 'Akun', BloodRequest: 'Permintaan', StockTransfer: 'Mutasi', Stock: 'Stok', DonorTicket: 'Tiket', Donor: 'Pendonor'
+};
+
+function setupAudit() {
+    const reload = () => { audit.page = 1; loadAudit(); };
+    document.getElementById('auditPrev').addEventListener('click', () => { audit.page = Math.max(1, audit.page - 1); loadAudit(); });
+    document.getElementById('auditNext').addEventListener('click', () => { audit.page++; loadAudit(); });
+    document.getElementById('auditPageSize').addEventListener('change', (e) => { audit.pageSize = Number(e.target.value); reload(); });
+    document.getElementById('auditRefresh').addEventListener('click', loadAudit);
+
+    let typing;
+    document.getElementById('auditSearch').addEventListener('input', (e) => {
+        clearTimeout(typing);
+        typing = setTimeout(() => { audit.search = e.target.value.trim(); reload(); }, 300);
+    });
+
+    const filters = document.getElementById('auditFilters');
+    const toggle = document.getElementById('auditFilterToggle');
+    toggle.addEventListener('click', () => {
+        const open = filters.classList.toggle('hidden') === false;
+        toggle.setAttribute('aria-expanded', String(open));
+    });
+    filters.addEventListener('submit', (e) => {
+        e.preventDefault();
+        audit.filters = Object.fromEntries([...new FormData(filters)].filter(([, v]) => v));
+        toggle.classList.toggle('icon-btn-primary', Object.keys(audit.filters).length > 0);
+        reload();
+    });
+    filters.addEventListener('reset', () => {
+        audit.filters = {};
+        toggle.classList.remove('icon-btn-primary');
+        setTimeout(reload);
+    });
+
+    document.querySelectorAll('[data-sort]').forEach(b => b.addEventListener('click', () => {
+        const key = b.dataset.sort;
+        audit.dir = audit.sort === key ? (audit.dir === 'asc' ? 'desc' : 'asc') : (key === 'createdAt' ? 'desc' : 'asc');
+        audit.sort = key;
+        reload();
+    }));
+
+    document.getElementById('auditTable').addEventListener('click', (e) => {
+        const btn = e.target.closest('[data-audit]');
+        if (btn) openAuditDetail(btn.dataset.audit);
+    });
+    document.querySelectorAll('[data-audit-tab]').forEach(b => b.addEventListener('click', () => showAuditTab(b.dataset.auditTab)));
+}
+
+// "2 detik lalu", "3 minggu lalu"
+function fmtAgo(ts) {
+    const s = Math.max(0, Math.round((Date.now() - new Date(ts).getTime()) / 1000));
+    const steps = [[60, 'detik', 1], [3600, 'menit', 60], [86400, 'jam', 3600], [604800, 'hari', 86400], [2592000, 'minggu', 604800], [31536000, 'bulan', 2592000]];
+    for (const [limit, unit, size] of steps) if (s < limit) return `${Math.floor(s / size)} ${unit} lalu`;
+    return `${Math.floor(s / 31536000)} tahun lalu`;
+}
+
+const fmtStamp = (ts) => new Date(ts).toLocaleString('sv-SE', { timeZone: 'Asia/Jakarta' });
+const shortRef = (ref) => (/^[0-9a-f-]{36}$/i.test(ref) ? ref.slice(0, 8) : ref);
+const muted = (text) => `<span class="text-slate-400">${text}</span>`;
+
+function auditUser(u) {
+    if (u.type === 'staff' || u.type === 'admin') {
+        const role = [ROLE_LABEL[u.role] || u.role, u.faskes].filter(Boolean).join(' · ');
+        return `<div class="font-semibold text-brand-700 truncate">${esc(u.email || u.label)}</div>
+            <div class="text-xs text-slate-500 truncate">${esc(u.label)}${role ? ` · ${esc(role)}` : ''}</div>`;
+    }
+    if (u.type === 'family' || u.type === 'donor') {
+        return `<div class="font-semibold text-slate-700">${esc(u.label)}</div><div class="text-xs text-slate-500">${esc(u.email || '')}</div>`;
+    }
+    return u.email ? `<div class="text-slate-600 truncate">${esc(u.email)}</div><div class="text-xs text-slate-400">Tamu</div>` : muted('Sistem / Tamu');
+}
+
+const eventBadge = (event) => `<span class="badge ${EVENT_STYLE[event] || 'bg-slate-100 text-slate-700'}">${esc(event.replace('_', ' '))}</span>`;
+const subject = (a) => (a.subjectType ? `${esc(SUBJECT_LABEL[a.subjectType] || a.subjectType)}${a.ref ? `: <span class="font-mono">${esc(shortRef(a.ref))}</span>` : ''}` : muted('—'));
+
+// rapid paging and typing overlap requests; only the newest one renders
 async function loadAudit() {
     const seq = ++audit.seq;
     let result;
     try {
-        result = await store.admin.audit(audit.page, audit.actor, audit.pageSize);
+        result = await store.admin.auditLogs({ page: audit.page, pageSize: audit.pageSize, search: audit.search, sort: audit.sort, dir: audit.dir, ...audit.filters });
     } catch (error) {
         if (seq === audit.seq && error.status !== 401) toast(error.message, 'error');
         return;
     }
     if (seq !== audit.seq) return;
+    const pages = Math.max(1, Math.ceil(result.total / audit.pageSize));
+    // deleting filters or a smaller page size can leave the current page past the end
+    if (audit.page > pages) {
+        audit.page = pages;
+        return loadAudit();
+    }
     audit.total = result.total;
     document.getElementById('auditTable').innerHTML = result.items.length ? result.items.map(a => `
-        <tr class="hover:bg-slate-50/60">
-            <td class="td text-xs text-slate-500 whitespace-nowrap">${fmtDate(a.createdAt)}, ${fmtTime(a.createdAt)}</td>
-            <td class="td text-xs font-mono">${esc(a.actor)}</td>
-            <td class="td"><span class="bg-slate-100 text-slate-700 px-2 py-0.5 rounded text-xs font-semibold">${esc(a.action)}</span></td>
-            <td class="td text-xs font-mono text-slate-500">${esc(a.ref || '—')}</td>
-        </tr>`).join('') : emptyRow(4, 'Tidak ada catatan.');
-    const pages = Math.max(1, Math.ceil(result.total / audit.pageSize));
+        <tr class="hover:bg-slate-50/60 align-middle">
+            <td class="td max-w-[260px]">${auditUser(a.user)}</td>
+            <td class="td font-mono text-xs">${a.ip ? esc(a.ip) : muted('—')}</td>
+            <td class="td whitespace-nowrap">${a.browser && a.browser !== 'Unknown' ? esc(a.browser) : muted('Unknown')}</td>
+            <td class="td whitespace-nowrap">${a.platform && a.platform !== 'Unknown' ? esc(a.platform) : muted('Unknown')}</td>
+            <td class="td">${eventBadge(a.event)}<div class="text-[11px] text-slate-500 font-mono mt-1">${esc(a.action)}</div></td>
+            <td class="td text-sm">${subject(a)}</td>
+            <td class="td text-right whitespace-nowrap"><div class="text-[11px] text-slate-500">${fmtAgo(a.createdAt)}</div><div class="tabular-nums">${fmtStamp(a.createdAt)}</div></td>
+            <td class="td text-center"><button data-audit="${a.id}" class="w-9 h-9 rounded-lg bg-slate-100 text-slate-600 hover:bg-slate-200" title="Lihat detail" aria-label="Lihat detail log"><i class="fa-regular fa-eye"></i></button></td>
+        </tr>`).join('') : emptyRow(8, audit.search || Object.keys(audit.filters).length ? 'Tidak ada log yang cocok.' : 'Belum ada aktivitas.');
+
     const from = (audit.page - 1) * audit.pageSize;
-    document.getElementById('auditInfo').textContent = result.total ? `${from + 1}–${Math.min(from + audit.pageSize, result.total)} dari ${result.total}` : '0 data';
+    document.getElementById('auditInfo').textContent = result.total
+        ? `Menampilkan ${from + 1}–${Math.min(from + audit.pageSize, result.total)} dari ${result.total} entri`
+        : 'Menampilkan 0 entri';
     document.getElementById('auditPrev').disabled = audit.page <= 1;
     document.getElementById('auditNext').disabled = audit.page >= pages;
     pageButtons('auditPages', audit.page, pages, (p) => { audit.page = p; loadAudit(); });
+    document.querySelectorAll('[data-sort]').forEach(b => {
+        const on = b.dataset.sort === audit.sort;
+        b.innerHTML = `${b.textContent.trim()} <i class="fa-solid ${on ? (audit.dir === 'asc' ? 'fa-arrow-up' : 'fa-arrow-down') : 'fa-arrows-up-down text-slate-300'} text-[10px]"></i>`;
+        b.closest('th').setAttribute('aria-sort', on ? (audit.dir === 'asc' ? 'ascending' : 'descending') : 'none');
+    });
+}
+
+function showAuditTab(name) {
+    document.querySelectorAll('[data-audit-tab]').forEach(b => b.setAttribute('aria-selected', String(b.dataset.auditTab === name)));
+    document.querySelectorAll('[data-audit-pane]').forEach(p => p.classList.toggle('hidden', p.dataset.auditPane !== name));
+}
+
+const jsonBlock = (title, value) => `
+    <details open class="min-w-0">
+        <summary class="cursor-pointer text-sm font-bold text-slate-700 mb-2">${title}</summary>
+        <pre class="bg-slate-900 text-slate-100 text-xs leading-relaxed rounded-xl p-4 overflow-auto max-h-80">${esc(JSON.stringify(value, null, 2))}</pre>
+    </details>`;
+
+async function openAuditDetail(id) {
+    const dialog = document.getElementById('auditDialog');
+    const body = document.getElementById('auditDetail');
+    body.innerHTML = '<p class="text-sm text-slate-500">Memuat…</p>';
+    showAuditTab('detail');
+    dialog.showModal();
+    let a;
+    try {
+        a = await store.admin.auditLog(id);
+    } catch (error) {
+        body.innerHTML = `<p class="text-sm text-red-600">${esc(error.message)}</p>`;
+        return;
+    }
+    const u = a.user;
+    const who = u.type === 'staff' || u.type === 'admin'
+        ? `${esc(u.label)} ${muted(`(${esc(ROLE_LABEL[u.role] || u.role || u.type)}${u.faskes ? ' · ' + esc(u.faskes) : ''})`)}<div class="text-xs text-slate-500">${esc(u.email || '')}</div>`
+        : `${esc(u.label)}${u.email && u.email !== u.label ? ` ${muted(esc(u.email))}` : ''}`;
+    const rows = [
+        ['Pengguna', who],
+        ['Aksi', `${eventBadge(a.event)} <span class="font-mono text-xs text-slate-500 ml-2">${esc(a.action)}</span>`],
+        ['Subjek', subject(a) + (a.ref && shortRef(a.ref) !== a.ref ? `<div class="font-mono text-[11px] text-slate-400 break-all">${esc(a.ref)}</div>` : '')],
+        ['Waktu', `${fmtDate(a.createdAt)}, ${fmtTime(a.createdAt)} ${muted(`(${fmtAgo(a.createdAt)})`)}`],
+        ['Alamat IP', a.ip ? `<span class="font-mono">${esc(a.ip)}</span>` : muted('—')],
+        ['Platform', a.platform ? `${esc(a.platform)}${a.device ? ` · ${esc(a.device)}` : ''}` : muted('—')],
+        ['Browser', a.browser ? esc(a.browser) : muted('—')],
+        ['Request', a.method ? `<span class="font-mono text-xs break-all">${esc(a.method)} ${esc(a.url || '')}</span>` : muted('— (proses sistem)')],
+        ['User agent', a.userAgent ? `<span class="text-xs text-slate-500 break-all">${esc(a.userAgent)}</span>` : muted('—')]
+    ];
+    const hasChange = a.before || a.after;
+    body.innerHTML = `
+        <div data-audit-pane="detail">
+            <dl class="divide-y divide-slate-100 text-sm">
+                ${rows.map(([k, v]) => `<div class="grid grid-cols-3 gap-4 py-2.5"><dt class="text-slate-500">${k}</dt><dd class="col-span-2 text-slate-800 min-w-0">${v}</dd></div>`).join('')}
+            </dl>
+        </div>
+        <div data-audit-pane="data" class="hidden space-y-4">
+            ${hasChange ? `<div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                ${jsonBlock(a.before ? 'Diubah' : 'Data baru', a.after ?? {})}
+                ${a.before ? jsonBlock('Data awal', a.before) : ''}
+            </div>` : ''}
+            ${a.meta ? jsonBlock('Keterangan', a.meta) : ''}
+            ${!hasChange && !a.meta ? '<p class="text-sm text-slate-500">Tidak ada data perubahan untuk log ini.</p>' : ''}
+        </div>`;
+    showAuditTab('detail');
 }
 
 // styled replacement for confirm(); resolves true only when the red button was pressed

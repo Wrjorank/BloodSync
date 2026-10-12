@@ -54,7 +54,7 @@ export const donorService = {
         await tx.donation.create({ data: { donorId: created.id, component: 'WB', donatedAt: input.lastDonationAt } });
         await tx.donorBadge.create({ data: { donorId: created.id, badgeId: 'first' } });
       }
-      await audit(tx, `pendonor:${phone}`, 'donor.register', created.id);
+      await audit(tx, `donor:${phone}`, 'donor.register', created.id);
       return created;
     });
     return { token: signToken({ kind: 'donor', sub: donor.id, phone, ver: donor.tokenVersion }), donorId: donor.id };
@@ -184,7 +184,7 @@ export const donorService = {
   async logout(donorId: string) {
     await runInTx(async tx => {
       const donor = await tx.donor.update({ where: { id: donorId }, data: { tokenVersion: { increment: 1 } } });
-      await audit(tx, `pendonor:${donor.phone}`, 'auth.logout', donorId);
+      await audit(tx, `donor:${donor.phone}`, 'auth.logout', donorId);
     });
     return { loggedOut: true };
   },

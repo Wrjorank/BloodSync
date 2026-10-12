@@ -54,6 +54,9 @@ export const dispatchSchema = z.object({
   }),
 });
 
+// fcm registration tokens are ~160 chars; the cap only keeps junk out
+export const pushTokenSchema = z.object({ body: z.object({ token: z.string().trim().min(20).max(4096) }) });
+
 export const scanSchema = z.object({ body: z.object({ code: z.string().trim().min(4).max(24) }) });
 
 export const screeningSchema = z.object({
@@ -77,7 +80,15 @@ export const adjustStockSchema = z.object({
   }),
 });
 
-export const limitSchema = z.object({ query: z.object({ limit: z.coerce.number().int().min(1).max(100).default(10) }) });
+export const notificationListSchema = z.object({
+  query: z.object({
+    page: z.coerce.number().int().min(1).default(1),
+    pageSize: z.coerce.number().int().min(1).max(100).default(10),
+    unread: z.enum(['true', 'false']).default('false'),
+  }),
+});
+
+export const limitSchema =z.object({ query: z.object({ limit: z.coerce.number().int().min(1).max(100).default(10) }) });
 
 const area = z.string().refine(a => a in AREAS, 'Kecamatan tidak dikenal');
 // gps fix from the browser, limited to indonesia's bounding box
@@ -136,11 +147,20 @@ export const updateUserSchema = z.object({
   body: z.object({ ...userBody, password: z.union([z.literal(''), strongPassword]).optional() }),
 });
 
+const AUDIT_EVENTS = ['LOGIN', 'LOGIN_FAILED', 'LOGOUT', 'CREATED', 'UPDATED', 'DELETED', 'EXPORTED', 'IMPORTED', 'VIEWED', 'ERROR'] as const;
+const isoDay = z.string().regex(/^d{4}-d{2}-d{2}$/, 'Format tanggal YYYY-MM-DD');
+
 export const auditQuerySchema = z.object({
   query: z.object({
     page: z.coerce.number().int().min(1).default(1),
-    pageSize: z.coerce.number().int().min(1).max(100).default(25),
-    actor: z.string().max(80).optional(),
+    pageSize: z.coerce.number().int().min(1).max(100).default(10),
+    search: z.string().trim().max(120).optional(),
+    event: z.enum(AUDIT_EVENTS).optional(),
+    actorType: z.enum(['admin', 'staff', 'family', 'donor', 'guest']).optional(),
+    from: isoDay.optional(),
+    to: isoDay.optional(),
+    sort: z.enum(['createdAt', 'event', 'actor', 'ip', 'browser', 'platform', 'subjectType']).default('createdAt'),
+    dir: z.enum(['asc', 'desc']).default('desc'),
   }),
 });
 

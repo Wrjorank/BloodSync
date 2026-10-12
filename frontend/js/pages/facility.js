@@ -1,4 +1,4 @@
-// faskes.js — operational dashboard for RS / UDD PMI staff, backed by /api/faskes/me
+// facility.js — operational dashboard for RS / UDD PMI staff, backed by /api/facility/me
 const DOC_CHECKS = [
     'Nomor rekam medis sesuai data pasien',
     'Komponen & jumlah kantong sesuai surat',
@@ -12,14 +12,14 @@ let LOW_STOCK = 2;
 // server data from the last load
 const data = { faskes: null, stock: [], active: [], history: [], options: {}, arrivals: [], movements: [], pool: null, transfers: { incoming: [], outgoing: [] } };
 // ui-only state that must survive re-renders
-const ui = { checks: {}, rejecting: {}, dispatch: {}, busy: false, modal: null, lastPending: null, unsubscribe: null, seq: 0 };
+const ui = { checks: {}, rejecting: {}, dispatch: {}, busy: false, modal: null, view: 'stock', wanted: null, unsubscribe: null, seq: 0 };
 
 document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('loginForm').addEventListener('submit', onLogin);
-    document.getElementById('btnLogout').addEventListener('click', logout);
-    document.getElementById('btnLogoutMobile').addEventListener('click', logout);
+    document.getElementById('btnLogout').addEventListener('click', signOut);
+    document.getElementById('btnLogoutMobile').addEventListener('click', signOut);
 
-    document.querySelectorAll('[data-view]').forEach(b => b.addEventListener('click', () => showView(b.dataset.view)));
+    document.querySelectorAll('[data-view]').forEach(b => b.addEventListener('click', () => showView(b.dataset.view, true)));
     document.querySelectorAll('[data-open]').forEach(b => b.addEventListener('click', () => document.getElementById(b.dataset.open).showModal()));
     document.querySelectorAll('dialog').forEach(d => {
         d.querySelectorAll('[data-close]').forEach(b => b.addEventListener('click', () => d.close()));
@@ -27,8 +27,8 @@ document.addEventListener('DOMContentLoaded', () => {
     });
     const header = document.querySelector('main > header');
     autoHideHeader(header, header.nextElementSibling);
-    window.addEventListener('hashchange', () => showView(location.hash.slice(1)));
-    showView(location.hash.slice(1));
+    window.addEventListener('popstate', () => showView(route.current()));
+    showView(route.current());
 
     document.getElementById('scanForm').addEventListener('submit', (e) => {
         e.preventDefault();
@@ -48,13 +48,15 @@ document.addEventListener('DOMContentLoaded', () => {
         if (btn) scan(btn.dataset.code);
     });
     document.getElementById('transfersContainer').addEventListener('click', onTransferClick);
+    setupNotifications();
+    pushNotify.bind(document.querySelectorAll('[data-push-toggle]'), 'staff', { save: store.staff.addPushToken, remove: store.staff.removePushToken });
     document.getElementById('screeningBody').addEventListener('submit', onScreeningSubmit);
     document.getElementById('screeningBody').addEventListener('click', onScreeningClick);
 
     // the export dialog opens on the dataset of the current view
     setupExport({
         download: store.staff.export,
-        pick: () => ({ stok: 'stok', permintaan: 'permintaan', pemindai: 'tiket-donor', pendonor: 'tiket-donor' })[location.hash.slice(1)] || 'stok'
+        pick: () => ({ stock: 'stock', requests: 'requests', scanner: 'donor-tickets', donors: 'donor-tickets' })[ui.view] || 'stock'
     });
     setupImport({ template: store.staff.importTemplate, upload: store.staff.import, onDone: () => load() });
 
@@ -73,22 +75,35 @@ document.addEventListener('DOMContentLoaded', () => {
     else showLogin(true);
 });
 
-const VIEWS = ['stok', 'permintaan', 'pemindai', 'pendonor'];
+const VIEWS = ['stock', 'requests', 'scanner', 'donors', 'notifications'];
+// views lived in the hash before they moved to the path (/facility#stok)
+const route = viewRouter(VIEWS, 'stock', { stok: 'stock', permintaan: 'requests', pemindai: 'scanner', pendonor: 'donors', notifikasi: 'notifications' });
 
-function showView(name) {
-    if (!VIEWS.includes(name)) name = 'stok';
+function showView(name, push = false) {
+    if (!VIEWS.includes(name)) name = 'stock';
+    ui.view = name;
     // each view starts at the top, which also brings a hidden header back
     document.querySelector('main > header')?.nextElementSibling?.scrollTo(0, 0);
     document.querySelectorAll('[data-panel]').forEach(p => p.classList.toggle('hidden', p.dataset.panel !== name));
     document.querySelectorAll('.nav-link, .tab-link').forEach(b => b.classList.toggle('active', b.dataset.view === name));
-    document.getElementById('btnBack').classList.toggle('hidden', name === 'stok');
-    if (location.hash.slice(1) !== name) history.replaceState(null, '', `#${name}`);
-    if (name === 'pemindai') document.getElementById('scanCode').focus();
+    document.getElementById('btnBack').classList.toggle('hidden', name === 'stock');
+    // the login screen keeps a clean url; the view only lands in the path once signed in
+    if (session.get('staff')) route.go(name, push);
+    if (name === 'scanner') document.getElementById('scanCode').focus();
     else stopCamera();
+    if (name === 'notifications' && session.get('staff')) loadNotifPage();
 }
 
 function showLogin(show) {
     document.getElementById('loginView').classList.toggle('hidden', !show);
+    // the view asked for in the url is kept across the login screen, then restored
+    if (show) {
+        ui.wanted = route.current();
+        route.reset();
+    } else {
+        showView(ui.wanted || route.current());
+        ui.wanted = null;
+    }
     // keep keyboard focus inside the overlay
     document.querySelectorAll('body > aside, body > main').forEach(el => { el.inert = show; });
 }
@@ -110,12 +125,22 @@ async function onLogin(e) {
     });
 }
 
+// the button: the server records the sign-out first, then the session is dropped
+async function signOut() {
+    await pushNotify.detach('staff', store.staff.removePushToken);
+    await store.logout('staff');
+    logout();
+}
+
 function logout() {
     ui.unsubscribe?.();
     ui.unsubscribe = null;
     ui.seq++; // drop any load still in flight
     stopCamera();
     closeScreening();
+    toggleNotifications(false);
+    Object.assign(notif, { latest: [], unread: null, page: 1, pageData: null });
+    notif.seq++;
     session.clear('staff');
     showLogin(true);
 }
@@ -123,10 +148,10 @@ function logout() {
 function start() {
     showLogin(false);
     document.getElementById('staffWho').textContent = session.get('staff')?.user?.email || '';
-    ui.lastPending = null;
     ui.unsubscribe?.();
     ui.unsubscribe = subscribe('staff', load);
     load();
+    pushNotify.resume('staff', store.staff.addPushToken);
 }
 
 // fetch everything the dashboard shows, then render once
@@ -181,6 +206,7 @@ function render() {
     renderTransfers();
     renderMovements();
     renderDonorPool();
+    loadNotifications();
     document.getElementById('syncedAt').textContent = `Diperbarui ${fmtTime(Date.now())}`;
 }
 
@@ -207,9 +233,9 @@ function renderKpis() {
         kpi('Total stok', total, 'kantong tersedia', 'fa-droplet', 'bg-brand-50 text-brand-600'),
         kpi('Stok kosong', empty, `dari ${cells.length} kombinasi`, 'fa-circle-exclamation', 'bg-red-50 text-red-600'),
         kpi('Stok menipis', low, `di bawah ${LOW_STOCK} kantong`, 'fa-triangle-exclamation', 'bg-amber-50 text-amber-600'),
-        kpi('Permintaan aktif', data.active.length, pending ? `${pending} menunggu verifikasi` : 'tidak ada yang menunggu', 'fa-file-waveform', 'bg-blue-50 text-blue-600', 'permintaan')
+        kpi('Permintaan aktif', data.active.length, pending ? `${pending} menunggu verifikasi` : 'tidak ada yang menunggu', 'fa-file-waveform', 'bg-blue-50 text-blue-600', 'requests')
     ].join('');
-    el.querySelectorAll('[data-go]').forEach(b => b.addEventListener('click', () => showView(b.dataset.go)));
+    el.querySelectorAll('[data-go]').forEach(b => b.addEventListener('click', () => showView(b.dataset.go, true)));
 }
 
 // stock matrix: component x ABO/Rh
@@ -239,18 +265,202 @@ function renderStock() {
         </table>`;
 }
 
+// staff inbox, stored on the server: the bell shows the latest few, the notifikasi view pages through all of them
+const NOTIF_STYLE = {
+    REQUEST_URGENT: ['fa-truck-medical', 'bg-red-50 text-red-600'],
+    REQUEST_NEW: ['fa-file-medical', 'bg-amber-50 text-amber-600'],
+    REQUEST_CANCELLED: ['fa-ban', 'bg-slate-100 text-slate-600'],
+    REQUEST_FULFILLED: ['fa-circle-check', 'bg-green-50 text-green-600'],
+    REQUEST_EXPIRED: ['fa-hourglass-end', 'bg-red-50 text-red-600'],
+    RADIUS_MAXED: ['fa-bullhorn', 'bg-amber-50 text-amber-600'],
+    TRANSFER_IN: ['fa-right-left', 'bg-amber-50 text-amber-600'],
+    TRANSFER_APPROVED: ['fa-right-left', 'bg-green-50 text-green-600'],
+    TRANSFER_REJECTED: ['fa-right-left', 'bg-red-50 text-red-600'],
+    DONOR_COMING: ['fa-person-walking', 'bg-blue-50 text-blue-600'],
+    DONOR_CANCELLED: ['fa-user-xmark', 'bg-slate-100 text-slate-600'],
+    DONOR_NO_SHOW: ['fa-user-clock', 'bg-red-50 text-red-600'],
+    STOCK_LOW: ['fa-droplet', 'bg-amber-50 text-amber-600']
+};
+const notif = { latest: [], unread: null, page: 1, pageSize: 10, unreadOnly: false, pageData: null, seq: 0 };
+const POPUP_SIZE = 6;
+
+function notifItem(n, roomy) {
+    const [icon, tone] = NOTIF_STYLE[n.kind] || ['fa-bell', 'bg-slate-100 text-slate-600'];
+    const unread = !n.read;
+    const when = `${fmtDate(n.createdAt)}, ${fmtTime(n.createdAt)}`;
+    if (!roomy) return `
+        <button data-notif="${n.id}" data-go="${n.view}" data-read="${n.read}" class="w-full text-left flex gap-3 px-4 py-3 hover:bg-slate-50 transition-colors ${unread ? 'bg-brand-50/60' : ''}">
+            <div class="w-9 h-9 shrink-0 rounded-xl ${tone} flex items-center justify-center"><i class="fa-solid ${icon} text-sm"></i></div>
+            <div class="min-w-0 flex-grow">
+                <div class="text-sm ${unread ? 'font-bold text-slate-900' : 'font-semibold text-slate-700'} truncate">${esc(n.title)}</div>
+                <div class="text-xs text-slate-500 line-clamp-2">${esc(n.body)}</div>
+                <div class="text-[11px] text-slate-500 mt-1">${when}</div>
+            </div>
+            ${unread ? '<span class="w-2 h-2 mt-1.5 shrink-0 rounded-full bg-brand-500" aria-label="Belum dibaca"></span>' : ''}
+        </button>`;
+    return `
+        <button data-notif="${n.id}" data-go="${n.view}" data-read="${n.read}" class="card w-full text-left p-4 sm:p-5 flex gap-4 hover:border-slate-300 transition-colors ${unread ? 'border-l-4 border-l-brand-500' : ''}">
+            <div class="w-10 h-10 shrink-0 rounded-xl ${tone} flex items-center justify-center"><i class="fa-solid ${icon}"></i></div>
+            <div class="min-w-0 flex-grow">
+                <div class="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-1">
+                    <div class="${unread ? 'font-bold text-slate-900' : 'font-semibold text-slate-700'}">${esc(n.title)}</div>
+                    <div class="text-xs text-slate-500 shrink-0 tabular-nums">${when}</div>
+                </div>
+                <div class="text-sm text-slate-600 mt-0.5">${esc(n.body)}</div>
+            </div>
+        </button>`;
+}
+
+// popup + badges; called on every dashboard reload (socket, poll, after an action)
+async function loadNotifications() {
+    const seq = ++notif.seq;
+    try {
+        const res = await store.staff.notifications(1, POPUP_SIZE);
+        if (seq !== notif.seq) return;
+        if (notif.unread !== null && res.unread > notif.unread && res.items[0] && !res.items[0].read) toast(`Notifikasi baru: ${res.items[0].title}`);
+        notif.latest = res.items;
+        notif.unread = res.unread;
+        renderNotifications();
+        if (ui.view === 'notifications') loadNotifPage();
+    } catch (error) {
+        if (error.status !== 401) console.warn('[notifikasi]', error.message);
+    }
+}
+
+function renderNotifications() {
+    const unread = notif.unread || 0;
+    const label = unread > 99 ? '99+' : String(unread);
+    document.getElementById('bellDot').classList.toggle('hidden', unread === 0);
+    document.getElementById('btnBell').setAttribute('aria-label', unread ? `Notifikasi, ${unread} belum dibaca` : 'Notifikasi');
+    const nav = document.getElementById('navUnread');
+    nav.textContent = label;
+    nav.classList.toggle('hidden', unread === 0);
+    document.getElementById('notifCount').textContent = unread ? `${unread} belum dibaca` : '';
+    document.getElementById('notifReadAll').disabled = unread === 0;
+    document.getElementById('notifList').innerHTML = notif.latest.length
+        ? notif.latest.map(n => notifItem(n, false)).join('')
+        : emptyState('fa-bell-slash', 'Tidak ada notifikasi baru');
+}
+
+async function loadNotifPage() {
+    const list = document.getElementById('notifPageList');
+    try {
+        const res = await store.staff.notifications(notif.page, notif.pageSize, notif.unreadOnly);
+        // a page past the end (after mark-all-read with the unread filter) falls back to the last one
+        const last = Math.max(1, Math.ceil(res.total / notif.pageSize));
+        if (notif.page > last) {
+            notif.page = last;
+            return loadNotifPage();
+        }
+        notif.pageData = res;
+        renderNotifPage();
+    } catch (error) {
+        if (error.status !== 401) list.innerHTML = emptyState('fa-triangle-exclamation', esc(error.message));
+    }
+}
+
+function renderNotifPage() {
+    const res = notif.pageData;
+    document.getElementById('notifSummary').textContent = `${res.unread} belum dibaca dari semua notifikasi faskes ini.`;
+    document.getElementById('notifPageReadAll').disabled = res.unread === 0;
+    document.querySelectorAll('[data-notif-filter]').forEach(b => {
+        const on = b.dataset.notifFilter === String(notif.unreadOnly);
+        b.classList.toggle('bg-slate-900', on);
+        b.classList.toggle('text-white', on);
+        b.classList.toggle('text-slate-600', !on);
+        b.setAttribute('aria-pressed', String(on));
+    });
+    document.getElementById('notifPageList').innerHTML = res.items.length
+        ? res.items.map(n => notifItem(n, true)).join('')
+        : `<div class="card">${emptyState('fa-bell-slash', notif.unreadOnly ? 'Semua notifikasi sudah dibaca.' : 'Belum ada notifikasi.')}</div>`;
+    const pages = Math.max(1, Math.ceil(res.total / notif.pageSize));
+    const from = res.total ? (notif.page - 1) * notif.pageSize + 1 : 0;
+    const to = Math.min(res.total, notif.page * notif.pageSize);
+    document.getElementById('notifPager').innerHTML = `
+        <span>${from}–${to} dari ${res.total}</span>
+        <div class="flex items-center gap-2">
+            <button data-notif-page="${notif.page - 1}" ${notif.page <= 1 ? 'disabled' : ''} class="px-3 py-1.5 rounded-lg border border-slate-300 font-semibold text-slate-700 hover:bg-slate-100 disabled:opacity-40" aria-label="Halaman sebelumnya"><i class="fa-solid fa-chevron-left"></i></button>
+            <span class="tabular-nums">${notif.page} / ${pages}</span>
+            <button data-notif-page="${notif.page + 1}" ${notif.page >= pages ? 'disabled' : ''} class="px-3 py-1.5 rounded-lg border border-slate-300 font-semibold text-slate-700 hover:bg-slate-100 disabled:opacity-40" aria-label="Halaman berikutnya"><i class="fa-solid fa-chevron-right"></i></button>
+        </div>`;
+}
+
+async function openNotification(btn) {
+    toggleNotifications(false);
+    showView(btn.dataset.go, true);
+    if (btn.dataset.read === 'true') return;
+    await store.staff.readNotification(btn.dataset.notif).catch(() => undefined);
+    loadNotifications();
+}
+
+async function readAllNotifications() {
+    try {
+        await store.staff.readAllNotifications();
+        await loadNotifications();
+        if (ui.view === 'notifications') loadNotifPage();
+    } catch (error) {
+        if (error.status !== 401) toast(error.message, 'error');
+    }
+}
+
+const isNotifOpen = () => !document.getElementById('notifPanel').classList.contains('hidden');
+
+function toggleNotifications(open) {
+    document.getElementById('notifPanel').classList.toggle('hidden', !open);
+    document.getElementById('btnBell').setAttribute('aria-expanded', String(open));
+}
+
+function setupNotifications() {
+    document.getElementById('btnBell').addEventListener('click', () => toggleNotifications(!isNotifOpen()));
+    document.getElementById('notifReadAll').addEventListener('click', readAllNotifications);
+    document.getElementById('notifPageReadAll').addEventListener('click', readAllNotifications);
+    document.getElementById('notifViewAll').addEventListener('click', () => {
+        toggleNotifications(false);
+        showView('notifications', true);
+    });
+    document.getElementById('notifRefresh').addEventListener('click', () => { loadNotifications(); loadNotifPage(); });
+    document.getElementById('notifPageSize').addEventListener('change', (e) => {
+        notif.pageSize = Number(e.target.value);
+        notif.page = 1;
+        loadNotifPage();
+    });
+    document.querySelectorAll('[data-notif-filter]').forEach(b => b.addEventListener('click', () => {
+        notif.unreadOnly = b.dataset.notifFilter === 'true';
+        notif.page = 1;
+        loadNotifPage();
+    }));
+    document.getElementById('notifPager').addEventListener('click', (e) => {
+        const btn = e.target.closest('[data-notif-page]');
+        if (!btn || btn.disabled) return;
+        notif.page = Number(btn.dataset.notifPage);
+        loadNotifPage();
+    });
+    for (const id of ['notifList', 'notifPageList']) {
+        document.getElementById(id).addEventListener('click', (e) => {
+            const btn = e.target.closest('[data-notif]');
+            if (btn) openNotification(btn);
+        });
+    }
+    document.addEventListener('click', (e) => {
+        if (isNotifOpen() && !e.target.closest('#notifWrap')) toggleNotifications(false);
+    });
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape' && isNotifOpen()) {
+            toggleNotifications(false);
+            document.getElementById('btnBell').focus();
+        }
+    });
+}
+
 function emptyState(icon, text) {
     return `<div class="py-6 text-center text-sm text-slate-400"><i class="fa-solid ${icon} text-2xl text-slate-300 mb-2 block"></i>${text}</div>`;
 }
 
 function renderRequests() {
     const pending = data.active.filter(r => r.status === 'PENDING_VERIFICATION').length;
-    if (ui.lastPending !== null && pending > ui.lastPending) toast('Pengajuan darah baru masuk. Periksa surat pengantar.');
-    ui.lastPending = pending;
     const nav = document.getElementById('navPending');
     nav.textContent = pending;
     nav.classList.toggle('hidden', pending === 0);
-    document.getElementById('bellDot').classList.toggle('hidden', pending === 0);
 
     document.getElementById('requestsContainer').innerHTML = data.active.length ? data.active.map(requestCard).join('') : `
         <div class="bg-white rounded-2xl border border-dashed border-slate-300 p-10 text-center">
@@ -602,7 +812,7 @@ async function scan(code) {
 // camera qr scanning; the library is fetched on first use so the dashboard stays light
 // token changes on every stop, so a start that resolves after the user left knows to shut itself down
 const camera = { instance: null, busy: false, token: 0 };
-const QR_LIB = 'vendor/html5-qrcode.min.js';
+const QR_LIB = '/vendor/html5-qrcode.min.js';
 
 function loadQrLib() {
     if (window.Html5Qrcode) return Promise.resolve();

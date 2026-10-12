@@ -5,16 +5,16 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>BloodSync — Sistem Logistik Darah Presisi</title>
     <meta name="description" content="Sistem logistik darah terintegrasi real-time yang menghubungkan rumah sakit, UDD PMI, keluarga pasien, dan pendonor secara presisi.">
-    <link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
+    <link rel="icon" href="/assets/favicon.svg" type="image/svg+xml">
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="vendor/fontawesome/css/all.min.css">
-    <link rel="stylesheet" href="css/index.css">
+    <link rel="stylesheet" href="/vendor/fontawesome/css/all.min.css">
+    <link rel="stylesheet" href="/css/index.css">
 </head>
 <body class="bg-slate-50 text-slate-800 min-h-screen flex flex-col antialiased overflow-x-hidden">
 
     <header class="sticky top-0 z-30 bg-gradient-to-r from-slate-900 via-slate-800 to-slate-700 border-b border-slate-700">
         <div class="max-w-6xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between gap-4">
-            <a href="index.html" class="flex items-center gap-3">
+            <a href="/" class="flex items-center gap-3">
                 <div class="w-9 h-9 rounded-xl bg-brand-600 flex items-center justify-center shadow-lg shadow-brand-600/30"><i class="fa-solid fa-droplet text-white"></i></div>
                 <span class="font-extrabold text-xl tracking-tight text-white">BloodSync</span>
             </a>
@@ -22,7 +22,7 @@
                 <a href="#cara-kerja" class="hidden sm:inline-block px-3 py-2 rounded-lg text-slate-300 hover:text-white hover:bg-white/10 font-medium">Cara Kerja</a>
                 <a href="#peran" class="hidden sm:inline-block px-3 py-2 rounded-lg text-slate-300 hover:text-white hover:bg-white/10 font-medium">Masuk</a>
                 <span class="hidden md:flex items-center gap-1.5 text-xs text-slate-300 pl-2"><span class="live-dot w-2 h-2 rounded-full bg-green-400"></span> Sistem aktif</span>
-                <a href="pasien.html" class="sm:hidden px-3 py-2 rounded-lg bg-brand-600 text-white font-semibold text-xs">Butuh darah</a>
+                <a href="/patient" class="sm:hidden px-3 py-2 rounded-lg bg-brand-600 text-white font-semibold text-xs">Butuh darah</a>
             </nav>
         </div>
     </header>
@@ -43,10 +43,10 @@
                         BloodSync menghubungkan keluarga pasien, rumah sakit, UDD PMI, dan pendonor terdekat dalam satu sistem. Stok terpantau langsung, dan panggilan donor hanya dikirim ke orang yang cocok.
                     </p>
                     <div class="mt-7 flex flex-col sm:flex-row gap-3">
-                        <a href="pasien.html" class="inline-flex items-center justify-center gap-2 bg-brand-600 hover:bg-brand-700 text-white font-semibold px-6 py-3.5 rounded-xl shadow-lg shadow-brand-600/25 transition-colors">
+                        <a href="/patient" class="inline-flex items-center justify-center gap-2 bg-brand-600 hover:bg-brand-700 text-white font-semibold px-6 py-3.5 rounded-xl shadow-lg shadow-brand-600/25 transition-colors">
                             <i class="fa-solid fa-file-medical"></i> Ajukan kebutuhan darah
                         </a>
-                        <a href="pendonor.html" class="inline-flex items-center justify-center gap-2 bg-white hover:bg-slate-50 text-slate-800 font-semibold px-6 py-3.5 rounded-xl border border-slate-300 transition-colors">
+                        <a href="/donor" class="inline-flex items-center justify-center gap-2 bg-white hover:bg-slate-50 text-slate-800 font-semibold px-6 py-3.5 rounded-xl border border-slate-300 transition-colors">
                             <i class="fa-solid fa-hand-holding-heart text-brand-600"></i> Daftar jadi pendonor
                         </a>
                     </div>
@@ -90,28 +90,25 @@
                 <p class="text-slate-500 mt-2">Pilih sesuai peran Anda untuk mulai.</p>
             </div>
             <div class="grid grid-cols-1 md:grid-cols-3 gap-5">
-                <a href="pasien.html" class="role-card group bg-white rounded-2xl border border-slate-200 p-6 flex flex-col hover:border-orange-300">
+                <a href="/patient" class="role-card group bg-white rounded-2xl border border-slate-200 p-6 flex flex-col hover:border-orange-300">
                     <div class="w-12 h-12 rounded-xl bg-orange-50 text-orange-600 flex items-center justify-center text-xl mb-4"><i class="fa-solid fa-hospital-user"></i></div>
                     <h3 class="text-lg font-bold text-slate-900">Keluarga Pasien</h3>
                     <p class="text-sm text-slate-500 leading-relaxed mt-1.5 flex-grow">Ajukan kebutuhan darah dengan foto surat dokter, lalu pantau pencarian pendonor secara langsung.</p>
                     <span class="mt-5 inline-flex items-center justify-center gap-2 w-full py-2.5 rounded-xl bg-orange-50 text-orange-700 font-semibold text-sm group-hover:bg-orange-100">Ajukan sekarang <i class="fa-solid fa-arrow-right text-xs"></i></span>
                 </a>
-                <a href="pendonor.html" class="role-card group bg-white rounded-2xl border border-slate-200 p-6 flex flex-col hover:border-brand-200">
+                <a href="/donor" class="role-card group bg-white rounded-2xl border border-slate-200 p-6 flex flex-col hover:border-brand-200">
                     <div class="w-12 h-12 rounded-xl bg-brand-50 text-brand-600 flex items-center justify-center text-xl mb-4"><i class="fa-solid fa-hand-holding-heart"></i></div>
                     <h3 class="text-lg font-bold text-slate-900">Calon Pendonor</h3>
                     <p class="text-sm text-slate-500 leading-relaxed mt-1.5 flex-grow">Terima panggilan hanya saat golongan darah Anda dibutuhkan di dekat Anda, lengkap dengan tiket QR dan rute.</p>
                     <span class="mt-5 inline-flex items-center justify-center gap-2 w-full py-2.5 rounded-xl bg-brand-50 text-brand-700 font-semibold text-sm group-hover:bg-brand-100">Daftar / masuk <i class="fa-solid fa-arrow-right text-xs"></i></span>
                 </a>
-                <a href="faskes.html" class="role-card group bg-white rounded-2xl border border-slate-200 p-6 flex flex-col hover:border-blue-300">
+                <a href="/facility" class="role-card group bg-white rounded-2xl border border-slate-200 p-6 flex flex-col hover:border-blue-300">
                     <div class="w-12 h-12 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center text-xl mb-4"><i class="fa-solid fa-hospital"></i></div>
                     <h3 class="text-lg font-bold text-slate-900">Petugas Faskes</h3>
                     <p class="text-sm text-slate-500 leading-relaxed mt-1.5 flex-grow">Kelola stok darah, verifikasi pengajuan, panggil pendonor terdekat, dan pindai tiket saat pendonor tiba.</p>
                     <span class="mt-5 inline-flex items-center justify-center gap-2 w-full py-2.5 rounded-xl bg-blue-50 text-blue-700 font-semibold text-sm group-hover:bg-blue-100">Buka dasbor <i class="fa-solid fa-arrow-right text-xs"></i></span>
                 </a>
             </div>
-            <p class="text-center mt-6 text-sm text-slate-500">
-                Pengelola sistem? <a href="admin.html" class="font-semibold text-slate-700 hover:text-brand-600 underline underline-offset-2">Masuk sebagai Super Admin</a>
-            </p>
         </section>
 
         <!-- how it works -->

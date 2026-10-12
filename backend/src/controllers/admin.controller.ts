@@ -1,6 +1,8 @@
 import { Request, Response } from 'express';
 import { adminService } from '../services/admin.service';
 import { ApiResponse } from '../utils/ApiResponse';
+import { notFound } from '../utils/AppError';
+import { AuditQuery, auditLogService } from '../services/audit.service';
 
 const adminId = (req: Request) => req.auth!.sub;
 
@@ -50,8 +52,13 @@ export const adminController = {
     return ApiResponse.success(res, await adminService.setUserActive(adminId(req), req.params.id, req.body.isActive), 'Status akun diperbarui');
   },
 
-  async audit(req: Request, res: Response) {
-    const { page, pageSize, actor } = req.query as unknown as { page: number; pageSize: number; actor?: string };
-    return ApiResponse.success(res, await adminService.auditLogs(page, pageSize, actor));
+  async auditLogs(req: Request, res: Response) {
+    return ApiResponse.success(res, await auditLogService.list(req.query as unknown as AuditQuery));
+  },
+
+  async auditLog(req: Request, res: Response) {
+    const row = await auditLogService.detail(req.params.id);
+    if (!row) throw notFound('Log tidak ditemukan');
+    return ApiResponse.success(res, row);
   },
 };

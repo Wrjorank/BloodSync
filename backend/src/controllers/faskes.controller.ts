@@ -5,7 +5,9 @@ import { letterAbsolutePath } from '../middlewares/upload';
 import { faskesService } from '../services/faskes.service';
 import { requestService } from '../services/request.service';
 import { ticketService } from '../services/ticket.service';
-import prisma from '../config/prisma';
+import { staffNotifications } from '../services/notification.service';
+import { auditNow } from '../services/audit.service';
+import { pushService } from '../services/push.service';
 import { ApiResponse } from '../utils/ApiResponse';
 import { notFound } from '../utils/AppError';
 
@@ -48,7 +50,7 @@ export const faskesController = {
     const letter = await requestService.letterFor(staffFaskesId(req), req.params.id);
     const file = letterAbsolutePath(letter.letterPath!);
     if (!fs.existsSync(file)) throw notFound('Berkas surat tidak ditemukan');
-    await prisma.auditLog.create({ data: { actor: `staff:${userId(req)}`, action: 'request.view_letter', ref: req.params.id } });
+    await auditNow(`staff:${userId(req)}`, 'request.view_letter', req.params.id, { file: letter.letterName });
     res.setHeader('Content-Type', letter.letterMime || 'application/octet-stream');
     res.setHeader('Content-Disposition', `inline; filename="surat"; filename*=UTF-8''${encodeURIComponent(letter.letterName || 'surat')}`);
     res.setHeader('Cache-Control', 'private, no-store');
@@ -123,5 +125,29 @@ export const faskesController = {
 
   async noShow(req: Request, res: Response) {
     return ApiResponse.success(res, await ticketService.noShow(staffFaskesId(req), userId(req), req.params.id), 'Slot dilepas');
+  },
+
+  async notifications(req: Request, res: Response) {
+    const { page, pageSize, unread } = req.query as unknown as { page: number; pageSize: number; unread: string };
+    return ApiResponse.success(res, await staffNotifications.list(staffFaskesId(req), userId(req), page, pageSize, unread === 'true'));
+  },
+
+  async readNotification(req: Request, res: Response) {
+    await staffNotifications.markRead(staffFaskesId(req), userId(req), req.params.id);
+    return ApiResponse.success(res, null);
+  },
+
+  async addPushToken(req: Request, res: Response) {
+    await pushService.register(req.body.token, { userId: userId(req), faskesId: staffFaskesId(req) }, req.get('user-agent'));
+    return ApiResponse.success(res, null, 'Notifikasi diaktifkan');
+  },
+
+  async removePushToken(req: Request, res: Response) {
+    await pushService.unregister(req.body.token, { userId: userId(req) });
+    return ApiResponse.success(res, null, 'Notifikasi dimatikan');
+  },
+
+  async readAllNotifications(req: Request, res: Response) {
+    return ApiResponse.success(res, await staffNotifications.markAllRead(staffFaskesId(req), userId(req)), 'Semua notifikasi ditandai dibaca');
   },
 };

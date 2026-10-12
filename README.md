@@ -60,11 +60,11 @@ Semua halaman ada di folder `frontend/`.
 
 | Halaman | Peran | Isi |
 |---|---|---|
-| `faskes.html` | Petugas RS / UDD PMI | Stok per komponen × golongan, verifikasi surat dokter, alokasi stok & mutasi antarfaskes, Dispatch Engine, pindai tiket QR, skrining, pengambilan |
-| `pasien.html` | Keluarga pasien | Pengajuan tanpa akun (OTP WhatsApp), unggah surat pengantar, live tracker, kartu darurat untuk disebar |
-| `pendonor.html` | Calon pendonor | Registrasi OTP, notifikasi tertarget, tiket digital + navigasi, riwayat, lencana, pengingat siklus 60 hari |
-| `kartu.html` | Publik | Kartu darurat terverifikasi; otomatis CLOSED saat kebutuhan terpenuhi |
-| `admin.html` | Super admin | Ringkasan dampak, perizinan faskes, akun petugas, audit log |
+| `/facility` (`/facility/stock`, `/requests`, `/scanner`, `/donors`, `/notifications`) | Petugas RS / UDD PMI | Stok per komponen × golongan, verifikasi surat dokter, alokasi stok & mutasi antarfaskes, Dispatch Engine, pindai tiket QR, skrining, pengambilan |
+| `/patient` | Keluarga pasien | Pengajuan tanpa akun (OTP WhatsApp), unggah surat pengantar, live tracker, kartu darurat untuk disebar |
+| `/donor` | Calon pendonor | Registrasi OTP, notifikasi tertarget, tiket digital + navigasi, riwayat, lencana, pengingat siklus 60 hari |
+| `/card?t=…` | Publik | Kartu darurat terverifikasi; otomatis CLOSED saat kebutuhan terpenuhi |
+| `/secretgate19` (`/overview`, `/facilities`, `/accounts`, `/audit-log`) | Super admin | Ringkasan dampak, perizinan faskes, akun petugas, audit log |
 
 Akun awal dibuat oleh seed, semuanya dengan kata sandi `password`:
 
@@ -84,11 +84,29 @@ Akun awal dibuat oleh seed, semuanya dengan kata sandi `password`:
 
 Notifikasi lokal hanya diterima browser di komputer yang sama. Koneksi lewat tunnel atau proxy ditolak, dan fitur ini selalu mati di production. Kode OTP tidak pernah dikembalikan oleh API.
 
+## Push notification (Firebase)
+
+Socket.IO menjaga halaman yang sedang terbuka tetap realtime. Firebase Cloud Messaging (FCM) dipakai untuk kabar yang harus sampai walau tab BloodSync tertutup:
+
+- Pendonor: panggilan darurat (bersama WhatsApp).
+- Petugas faskes: semua notifikasi dashboard (pengajuan baru, pendonor menuju faskes, mutasi stok, stok menipis, dan lainnya).
+
+Push opsional. Selama variabel `FIREBASE_*` kosong, tombol notifikasi tidak muncul dan aplikasi berjalan seperti biasa.
+
+1. Buat project di [console.firebase.google.com](https://console.firebase.google.com) (Google Analytics boleh dimatikan).
+2. **Project settings > General > Your apps > Web (</>)**: daftarkan web app, salin `apiKey`, `projectId`, `messagingSenderId`, `appId` ke `FIREBASE_API_KEY`, `FIREBASE_PROJECT_ID`, `FIREBASE_MESSAGING_SENDER_ID`, `FIREBASE_APP_ID`.
+3. **Project settings > Cloud Messaging > Web Push certificates > Generate key pair**: salin ke `FIREBASE_VAPID_KEY`.
+4. **Project settings > Service accounts > Generate new private key**: dari file JSON, isi `FIREBASE_CLIENT_EMAIL` (`client_email`) dan `FIREBASE_PRIVATE_KEY` (`private_key`, satu baris dengan `
+`, dibungkus tanda kutip). File JSON ini rahasia, jangan di-commit.
+5. Restart container, lalu di halaman pendonor atau faskes klik **Aktifkan notifikasi** dan izinkan di browser.
+
+Push hanya jalan di HTTPS (atau `localhost`). Di iPhone, situs harus ditambahkan ke Layar Utama dulu (iOS 16.4+).
+
 ## Semua orang bisa dipanggil, tanpa daftar akun
 
 Dispatch Engine tidak hanya memanggil pendonor yang mendaftar di aplikasi. Setiap kali gelombang panggilan dimulai atau radius diperluas, engine juga membaca data penduduk di sekitar faskes (nama, tanggal lahir, golongan darah, alamat, nomor HP). Penduduk yang golongan darahnya cocok dan berusia 17–60 tahun otomatis dijadikan pendonor (`source = REGISTRY`), lalu menerima WA panggilan darurat yang sama.
 
-- Mereka bisa membalas *1*/*2* di WA, atau masuk ke `pendonor.html` cukup dengan OTP, tanpa form pendaftaran.
+- Mereka bisa membalas *1*/*2* di WA, atau masuk ke `/donor` cukup dengan OTP, tanpa form pendaftaran.
 - Pesan WA pertama menjelaskan alasan mereka dihubungi. Balasan *STOP* menonaktifkan nomor tersebut untuk seterusnya.
 - Sumber data diatur di `backend/src/services/population.service.ts`. Untuk lomba, `POPULATION_SOURCE=local` memakai tabel `residents` yang diisi seed dengan 400 penduduk dummy di Jakarta. Penduduk dummy hanya muncul di notifikasi WA lokal, tidak pernah dikirim ke HP asli.
 - Untuk demo WA ke HP asli, isi `DEMO_RESIDENT_PHONE` (plus `FONNTE_TOKEN`). Nomor itu masuk ke data penduduk di dekat RSUD Tarakan dan ikut dipanggil tanpa pernah mendaftar.

@@ -1,10 +1,10 @@
 import { BloodRequest, Prisma, RequestStatus, TicketStatus } from '@prisma/client';
 import prisma from '../config/prisma';
 import { env } from '../config/env';
-import { DISPATCH, compatibleDonorTypes } from '../constants/blood';
+import { COMPONENT_LABEL, DISPATCH, compatibleDonorTypes } from '../constants/blood';
 import { DAY_MS, boundingBox, distanceKm, eligibility, randomCode } from '../utils/helpers';
 import { notFound } from '../utils/AppError';
-import { Outbox, flush } from './notification.service';
+import { Outbox, flush, notifyStaff } from './notification.service';
 import { ageAllowed, enlistNearby } from './population.service';
 
 export type Tx = Prisma.TransactionClient;
@@ -101,6 +101,17 @@ export async function setStatus(tx: Tx, req: BloodRequest, status: RequestStatus
   outbox.requests.add(req.id);
   outbox.faskes.add(req.faskesId);
   if (status === 'APPROVED' || status === 'FULFILLED') outbox.familyNotices.set(req.id, status);
+  if (status === 'FULFILLED') {
+    await notifyStaff(tx, outbox, req.faskesId, {
+      kind: 'REQUEST_FULFILLED', view: 'requests',
+      title: `Kebutuhan ${req.code} terpenuhi`, body: `${req.bagsNeeded} kantong untuk ${req.patientName} sudah tersedia.`,
+    });
+  } else if (status === 'EXPIRED') {
+    await notifyStaff(tx, outbox, req.faskesId, {
+      kind: 'REQUEST_EXPIRED', view: 'requests',
+      title: `Panggilan ${req.code} kedaluwarsa`, body: `Batas waktu panggilan donor untuk ${req.patientName} terlewati sebelum kebutuhan terpenuhi.`,
+    });
+  }
 }
 
 export async function releaseTickets(tx: Tx, requestId: string, from: TicketStatus[], to: TicketStatus, outbox: Outbox, note?: string) {
@@ -124,6 +135,14 @@ export async function takeFromShelf(tx: Tx, req: BloodRequest, faskesId: string,
     if (n <= 0) continue;
     await tx.stock.update({ where: { id: row!.id }, data: { quantity: { decrement: n } } });
     await tx.stockMovement.create({ data: { faskesId, component: req.component, bloodType: type, quantity: -n, kind: 'OUT', note, requestId: req.id } });
+    const left = Number(row!.quantity) - n;
+    if (left < DISPATCH.lowStockThreshold) {
+      await notifyStaff(tx, outbox, faskesId, {
+        kind: 'STOCK_LOW', view: 'stock',
+        title: `Stok ${COMPONENT_LABEL[req.component]} ${type} ${left === 0 ? 'habis' : 'menipis'}`,
+        body: `Sisa ${left} kantong setelah ${note}.`,
+      });
+    }
     taken += n;
     byType.push({ bloodType: type, quantity: n });
   }
@@ -314,6 +333,10 @@ async function tickRequest(id: string) {
       });
       expired.forEach(t => outbox.donors.add(t.donorId));
       outbox.requests.add(id);
+      await notifyStaff(tx, outbox, req.faskesId, {
+        kind: 'DONOR_NO_SHOW', view: 'scanner',
+        title: `${expired.length} pendonor tidak datang`, body: `Slot pada ${req.code} dilepas karena melewati batas waktu kedatangan.`,
+      });
     }
 
     if (req.status === 'BROADCASTING') {
@@ -331,6 +354,10 @@ async function tickRequest(id: string) {
         } else if (p.uncovered > 0 && !req.maxedOut) {
           await tx.bloodRequest.update({ where: { id }, data: { maxedOut: true } });
           await addEvent(tx, id, 'Radius maksimum tercapai, Kartu Darurat perlu disebar');
+          await notifyStaff(tx, outbox, req.faskesId, {
+            kind: 'RADIUS_MAXED', view: 'requests',
+            title: `Radius maksimum tercapai: ${req.code}`, body: `Masih kurang ${p.uncovered} kantong. Minta keluarga menyebar Kartu Darurat atau ajukan mutasi stok.`,
+          });
           outbox.requests.add(id);
         }
       }

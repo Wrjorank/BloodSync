@@ -21,7 +21,7 @@ export const whatsappService = {
     // opt-out; the inactive donor row keeps registry enlistment from picking the number up again
     if (stop) {
       if (donor.isActive) await donorService.deactivate(donor.id);
-      return reply(phone, `Baik, Anda tidak akan dihubungi lagi untuk panggilan donor. Untuk aktif kembali, masuk di ${env.publicAppUrl}/pendonor.html`);
+      return reply(phone, `Baik, Anda tidak akan dihubungi lagi untuk panggilan donor. Untuk aktif kembali, masuk di ${env.publicAppUrl}/donor`);
     }
     const open = await prisma.donorTicket.findMany({
       where: { donorId: donor.id, status: 'INVITED', request: { status: 'BROADCASTING' } },
@@ -37,7 +37,7 @@ export const whatsappService = {
         ...open.map((t, i) => `${i + 1}. ${t.request.faskes.name} (${t.request.code})`),
         ``,
         `Silakan pilih dan jawab langsung di aplikasi:`,
-        `${env.publicAppUrl}/pendonor.html`,
+        `${env.publicAppUrl}/donor`,
       ].join('\n'));
     }
     const ticket = open[0];
