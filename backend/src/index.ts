@@ -1,6 +1,7 @@
 import 'express-async-errors';
 import express from 'express';
 import cors from 'cors';
+import compression from 'compression';
 import { createServer } from 'http';
 import { Server } from 'socket.io';
 import { env } from './config/env';
@@ -25,6 +26,8 @@ app.disable('x-powered-by');
 app.set('trust proxy', env.trustProxy);
 app.use(cors({ origin: corsOrigin, exposedHeaders: ['Content-Disposition', 'X-Export-Rows', 'X-Export-Truncated', 'X-Import-Rows'] }));
 app.use(requestContext);
+// gzip/brotli for html, js, css and json; already-compressed bodies (xlsx, images) are skipped by content type
+app.use(compression({ threshold: 1024 }));
 app.use(express.json({ limit: '100kb' }));
 app.use((_req, res, next) => {
   res.setHeader('X-Content-Type-Options', 'nosniff');
