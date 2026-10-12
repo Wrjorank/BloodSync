@@ -186,7 +186,7 @@ function subscribe(role, onChange, { cardToken, pollMs = 20000 } = {}) {
 
 const store = {
     meta: () => api('GET', '/public/meta'),
-    faskesList: () => api('GET', '/public/faskes'),
+    faskesList: () => api('GET', '/public/facilities'),
     card: (token) => api('GET', `/public/cards/${encodeURIComponent(token)}`),
 
     requestOtp: (phone, purpose) => api('POST', '/auth/otp/request', { body: { phone, purpose } }),
@@ -201,40 +201,40 @@ const store = {
     },
 
     staff: {
-        me: () => api('GET', '/faskes/me', { role: 'staff' }),
-        stock: () => api('GET', '/faskes/me/stock', { role: 'staff' }),
-        adjustStock: (body) => api('POST', '/faskes/me/stock/adjust', { role: 'staff', body }),
-        movements: (limit = 8) => api('GET', `/faskes/me/movements?limit=${limit}`, { role: 'staff' }),
-        donorPool: () => api('GET', '/faskes/me/donor-pool', { role: 'staff' }),
-        arrivals: () => api('GET', '/faskes/me/arrivals', { role: 'staff' }),
-        requests: (scope) => api('GET', `/faskes/me/requests?scope=${scope}`, { role: 'staff' }),
-        stockOptions: (id) => api('GET', `/faskes/me/requests/${id}/stock-options`, { role: 'staff' }),
-        approve: (id) => api('POST', `/faskes/me/requests/${id}/approve`, { role: 'staff' }),
-        reject: (id, reason) => api('POST', `/faskes/me/requests/${id}/reject`, { role: 'staff', body: { reason } }),
-        allocate: (id) => api('POST', `/faskes/me/requests/${id}/allocate`, { role: 'staff' }),
-        transfer: (id, fromFaskesId) => api('POST', `/faskes/me/requests/${id}/transfer`, { role: 'staff', body: { fromFaskesId } }),
-        transfers: () => api('GET', '/faskes/me/transfers', { role: 'staff' }),
-        approveTransfer: (id) => api('POST', `/faskes/me/transfers/${id}/approve`, { role: 'staff' }),
-        rejectTransfer: (id) => api('POST', `/faskes/me/transfers/${id}/reject`, { role: 'staff' }),
-        dispatch: (id, body) => api('POST', `/faskes/me/requests/${id}/dispatch`, { role: 'staff', body }),
-        close: (id) => api('POST', `/faskes/me/requests/${id}/close`, { role: 'staff' }),
-        scan: (code) => api('POST', '/faskes/me/tickets/scan', { role: 'staff', body: { code } }),
-        screening: (id, body) => api('POST', `/faskes/me/tickets/${id}/screening`, { role: 'staff', body }),
-        collect: (id) => api('POST', `/faskes/me/tickets/${id}/collect`, { role: 'staff' }),
-        noShow: (id) => api('POST', `/faskes/me/tickets/${id}/no-show`, { role: 'staff' }),
-        notifications: (page = 1, pageSize = 10, unread = false) => api('GET', `/faskes/me/notifications?page=${page}&pageSize=${pageSize}&unread=${unread}`, { role: 'staff' }),
-        readNotification: (id) => api('POST', `/faskes/me/notifications/${id}/read`, { role: 'staff' }),
-        readAllNotifications: () => api('POST', '/faskes/me/notifications/read-all', { role: 'staff' }),
-        export: (dataset, query) => download('staff', `/faskes/me/export/${encodeURIComponent(dataset)}${query ? '?' + query : ''}`),
-        importTemplate: (dataset) => download('staff', `/faskes/me/import/${encodeURIComponent(dataset)}/template`),
-        import: (dataset, file, commit) => upload('staff', `/faskes/me/import/${encodeURIComponent(dataset)}${commit ? '?commit=1' : ''}`, file),
+        me: () => api('GET', '/facility/me', { role: 'staff' }),
+        stock: () => api('GET', '/facility/me/stock', { role: 'staff' }),
+        adjustStock: (body) => api('POST', '/facility/me/stock/adjust', { role: 'staff', body }),
+        movements: (limit = 8) => api('GET', `/facility/me/movements?limit=${limit}`, { role: 'staff' }),
+        donorPool: () => api('GET', '/facility/me/donor-pool', { role: 'staff' }),
+        arrivals: () => api('GET', '/facility/me/arrivals', { role: 'staff' }),
+        requests: (scope) => api('GET', `/facility/me/requests?scope=${scope}`, { role: 'staff' }),
+        stockOptions: (id) => api('GET', `/facility/me/requests/${id}/stock-options`, { role: 'staff' }),
+        approve: (id) => api('POST', `/facility/me/requests/${id}/approve`, { role: 'staff' }),
+        reject: (id, reason) => api('POST', `/facility/me/requests/${id}/reject`, { role: 'staff', body: { reason } }),
+        allocate: (id) => api('POST', `/facility/me/requests/${id}/allocate`, { role: 'staff' }),
+        transfer: (id, fromFaskesId) => api('POST', `/facility/me/requests/${id}/transfer`, { role: 'staff', body: { fromFaskesId } }),
+        transfers: () => api('GET', '/facility/me/transfers', { role: 'staff' }),
+        approveTransfer: (id) => api('POST', `/facility/me/transfers/${id}/approve`, { role: 'staff' }),
+        rejectTransfer: (id) => api('POST', `/facility/me/transfers/${id}/reject`, { role: 'staff' }),
+        dispatch: (id, body) => api('POST', `/facility/me/requests/${id}/dispatch`, { role: 'staff', body }),
+        close: (id) => api('POST', `/facility/me/requests/${id}/close`, { role: 'staff' }),
+        scan: (code) => api('POST', '/facility/me/tickets/scan', { role: 'staff', body: { code } }),
+        screening: (id, body) => api('POST', `/facility/me/tickets/${id}/screening`, { role: 'staff', body }),
+        collect: (id) => api('POST', `/facility/me/tickets/${id}/collect`, { role: 'staff' }),
+        noShow: (id) => api('POST', `/facility/me/tickets/${id}/no-show`, { role: 'staff' }),
+        notifications: (page = 1, pageSize = 10, unread = false) => api('GET', `/facility/me/notifications?page=${page}&pageSize=${pageSize}&unread=${unread}`, { role: 'staff' }),
+        readNotification: (id) => api('POST', `/facility/me/notifications/${id}/read`, { role: 'staff' }),
+        readAllNotifications: () => api('POST', '/facility/me/notifications/read-all', { role: 'staff' }),
+        export: (dataset, query) => download('staff', `/facility/me/export/${encodeURIComponent(dataset)}${query ? '?' + query : ''}`),
+        importTemplate: (dataset) => download('staff', `/facility/me/import/${encodeURIComponent(dataset)}/template`),
+        import: (dataset, file, commit) => upload('staff', `/facility/me/import/${encodeURIComponent(dataset)}${commit ? '?commit=1' : ''}`, file),
         // the letter needs the auth header, so it is fetched as a blob instead of a plain link.
         // the window opens right away (still inside the click) so popup blockers let it through
         async openLetter(id) {
             const w = window.open('', '_blank');
             if (w) w.opener = null;
             try {
-                const res = await authorizedFetch('staff', `/faskes/me/requests/${id}/letter`);
+                const res = await authorizedFetch('staff', `/facility/me/requests/${id}/letter`);
                 if (!res.ok) throw await failure(res, 'staff', 'Surat pengantar tidak dapat dibuka');
                 const blob = await res.blob();
                 // only types the upload accepts may render; anything else is handed over as a plain download
@@ -252,11 +252,11 @@ const store = {
 
     admin: {
         overview: () => api('GET', '/admin/overview', { role: 'admin' }),
-        faskes: () => api('GET', '/admin/faskes', { role: 'admin' }),
-        createFaskes: (body) => api('POST', '/admin/faskes', { role: 'admin', body }),
-        updateFaskes: (id, body) => api('PATCH', `/admin/faskes/${encodeURIComponent(id)}`, { role: 'admin', body }),
-        deleteFaskes: (id) => api('DELETE', `/admin/faskes/${encodeURIComponent(id)}`, { role: 'admin' }),
-        setFaskesActive: (id, isActive) => api('PATCH', `/admin/faskes/${id}/active`, { role: 'admin', body: { isActive } }),
+        faskes: () => api('GET', '/admin/facilities', { role: 'admin' }),
+        createFaskes: (body) => api('POST', '/admin/facilities', { role: 'admin', body }),
+        updateFaskes: (id, body) => api('PATCH', `/admin/facilities/${encodeURIComponent(id)}`, { role: 'admin', body }),
+        deleteFaskes: (id) => api('DELETE', `/admin/facilities/${encodeURIComponent(id)}`, { role: 'admin' }),
+        setFaskesActive: (id, isActive) => api('PATCH', `/admin/facilities/${id}/active`, { role: 'admin', body: { isActive } }),
         users: () => api('GET', '/admin/users', { role: 'admin' }),
         createUser: (body) => api('POST', '/admin/users', { role: 'admin', body }),
         updateUser: (id, body) => api('PATCH', `/admin/users/${encodeURIComponent(id)}`, { role: 'admin', body }),

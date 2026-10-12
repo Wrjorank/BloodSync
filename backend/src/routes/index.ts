@@ -31,7 +31,7 @@ router.get('/webhooks/whatsapp', rateLimit('wa-webhook', 600, 60), webhook.whats
 
 // ---------- public (no auth) ----------
 router.get('/public/meta', pub.meta);
-router.get('/public/faskes', pub.faskes);
+router.get('/public/facilities', pub.faskes);
 router.get('/public/cards/:token', validate(s.tokenParamSchema), pub.card);
 
 // ---------- patient family (phone verified by otp) ----------
@@ -75,7 +75,7 @@ staff.post('/notifications/:id/read', validate(s.idParamSchema), fk.readNotifica
 staff.get('/export/:dataset', rateLimit('export', 30, 600), validate(s.staffExportSchema), exporter.staff);
 staff.get('/import/:dataset/template', validate(s.staffImportSchema), importer.staffTemplate);
 staff.post('/import/:dataset', rateLimit('import', 30, 600), xlsxUpload, validate(s.staffImportSchema), importer.staff);
-router.use('/faskes/me', staff);
+router.use('/facility/me', staff);
 
 // ---------- donor ----------
 router.post('/donors/register', requirePhone('DONOR'), validate(s.registerDonorSchema), donor.register);
@@ -97,11 +97,11 @@ router.use('/donors/me', dn);
 const adm = Router();
 adm.use(requireAdmin);
 adm.get('/overview', admin.overview);
-adm.get('/faskes', admin.listFaskes);
-adm.post('/faskes', validate(s.createFaskesSchema), admin.createFaskes);
-adm.patch('/faskes/:id', validate(s.updateFaskesSchema), admin.updateFaskes);
-adm.delete('/faskes/:id', validate(s.idParamSchema), admin.deleteFaskes);
-adm.patch('/faskes/:id/active', validate(s.activeSchema), admin.setFaskesActive);
+adm.get('/facilities', admin.listFaskes);
+adm.post('/facilities', validate(s.createFaskesSchema), admin.createFaskes);
+adm.patch('/facilities/:id', validate(s.updateFaskesSchema), admin.updateFaskes);
+adm.delete('/facilities/:id', validate(s.idParamSchema), admin.deleteFaskes);
+adm.patch('/facilities/:id/active', validate(s.activeSchema), admin.setFaskesActive);
 adm.get('/users', admin.listUsers);
 adm.post('/users', validate(s.createUserSchema), admin.createUser);
 adm.patch('/users/:id', validate(s.updateUserSchema), admin.updateUser);

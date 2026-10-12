@@ -83,7 +83,7 @@ export const ticketService = {
       const reservedUntil = new Date(now.getTime() + (etaMin + DISPATCH.reservationBufferMin) * 60000);
       await tx.donorTicket.update({ where: { id: ticketId }, data: { status: 'RESERVED', respondedAt: now, etaMin, reservedUntil } });
       await notifyStaff(tx, outbox, req.faskesId, {
-        kind: 'DONOR_COMING', view: 'pemindai',
+        kind: 'DONOR_COMING', view: 'scanner',
         title: `Pendonor menuju faskes: ${donor.name}`,
         body: `${donor.bloodType} untuk ${req.code}, perkiraan tiba ${etaMin} menit (${ticket.distanceKm.toFixed(1).replace('.', ',')} km).`,
       });
@@ -101,7 +101,7 @@ export const ticketService = {
       await tx.donorTicket.update({ where: { id: ticketId }, data: { status: 'CANCELLED' } });
       const donor = await tx.donor.findUniqueOrThrow({ where: { id: donorId }, select: { name: true } });
       await notifyStaff(tx, outbox, req.faskesId, {
-        kind: 'DONOR_CANCELLED', view: 'pemindai',
+        kind: 'DONOR_CANCELLED', view: 'scanner',
         title: `Pendonor batal datang: ${donor.name}`, body: `Tiket ${ticket.code} untuk ${req.code} dibatalkan. Sistem mencari pendonor cadangan.`,
       });
       touch(outbox, req, donorId);

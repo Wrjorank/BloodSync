@@ -4,11 +4,15 @@ const faskes_ = { page: 1, pageSize: 15, data: [], q: '' };
 const users_  = { page: 1, pageSize: 15, data: [], q: '' };
 
 const VIEWS = {
-    ringkasan: ['Ringkasan', 'Dampak BloodSync secara keseluruhan'],
-    faskes: ['Fasilitas Kesehatan', 'Perizinan rumah sakit & UDD PMI'],
-    akun: ['Akun Petugas', 'Kelola akses petugas faskes dan admin'],
-    audit: ['Audit Log', 'Jejak perubahan data sistem']
+    overview: ['Ringkasan', 'Dampak BloodSync secara keseluruhan'],
+    facilities: ['Fasilitas Kesehatan', 'Perizinan rumah sakit & UDD PMI'],
+    accounts: ['Akun Petugas', 'Kelola akses petugas faskes dan admin'],
+    'audit-log': ['Audit Log', 'Jejak perubahan data sistem']
 };
+// views lived in the hash before they moved to the path (/secretgate19#akun)
+const route = viewRouter(Object.keys(VIEWS), 'overview', { ringkasan: 'overview', faskes: 'facilities', akun: 'accounts', audit: 'audit-log' });
+let currentView = 'overview';
+let wantedView = null;
 let unsubscribe = null;
 let loadSeq = 0;
 
@@ -22,8 +26,8 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('btnLogout').addEventListener('click', logout);
     document.getElementById('btnLogoutMobile').addEventListener('click', logout);
 
-    document.querySelectorAll('[data-view]').forEach(b => b.addEventListener('click', () => showView(b.dataset.view)));
-    document.querySelectorAll('[data-go]').forEach(b => b.addEventListener('click', () => showView(b.dataset.go)));
+    document.querySelectorAll('[data-view]').forEach(b => b.addEventListener('click', () => showView(b.dataset.view, true)));
+    document.querySelectorAll('[data-go]').forEach(b => b.addEventListener('click', () => showView(b.dataset.go, true)));
     document.querySelectorAll('[data-open]').forEach(b => b.addEventListener('click', () => document.getElementById(b.dataset.open).showModal()));
     document.querySelectorAll('dialog').forEach(d => {
         d.querySelectorAll('[data-close]').forEach(b => b.addEventListener('click', () => d.close()));
@@ -31,8 +35,8 @@ document.addEventListener('DOMContentLoaded', () => {
     });
     const header = document.querySelector('main > header');
     autoHideHeader(header, header.nextElementSibling);
-    window.addEventListener('hashchange', () => showView(location.hash.slice(1)));
-    showView(location.hash.slice(1));
+    window.addEventListener('popstate', () => showView(route.current()));
+    showView(route.current());
 
     document.getElementById('faskesSearch').addEventListener('input', (e) => { faskes_.q = e.target.value.trim().toLowerCase(); faskes_.page = 1; renderFaskes(); });
     document.getElementById('usersSearch').addEventListener('input', (e) => { users_.q = e.target.value.trim().toLowerCase(); users_.page = 1; renderUsers(); });
@@ -85,8 +89,8 @@ document.addEventListener('DOMContentLoaded', () => {
     // the export dialog opens on the dataset of the current view
     setupExport({
         download: store.admin.export,
-        pick: () => ({ ringkasan: 'permintaan', faskes: 'faskes', akun: 'akun', audit: 'audit' })[location.hash.slice(1)] || 'permintaan',
-        extra: (dataset) => (dataset === 'audit' ? { actor: audit.actor } : {})
+        pick: () => ({ overview: 'requests', facilities: 'facilities', accounts: 'accounts', 'audit-log': 'audit-log' })[currentView] || 'requests',
+        extra: (dataset) => (dataset === 'audit-log' ? { actor: audit.actor } : {})
     });
     setupImport({
         template: store.admin.importTemplate,
@@ -133,23 +137,30 @@ function logout() {
 
 function showLogin(show) {
     document.getElementById('loginView').classList.toggle('hidden', !show);
-    if (show && location.hash) history.replaceState(null, '', location.pathname + location.search);
-    else if (!show) showView(location.hash.slice(1));
+    // the view asked for in the url is kept across the login screen, then restored
+    if (show) {
+        wantedView = route.current();
+        route.reset();
+    } else {
+        showView(wantedView || route.current());
+        wantedView = null;
+    }
     // keep keyboard focus inside the overlay
     document.querySelectorAll('body > aside, body > main').forEach(el => { el.inert = show; });
 }
 
-function showView(name) {
-    if (!VIEWS[name]) name = 'ringkasan';
+function showView(name, push = false) {
+    if (!Object.hasOwn(VIEWS, name)) name = 'overview';
+    currentView = name;
     // each view starts at the top, which also brings a hidden header back
     document.querySelector('main > header')?.nextElementSibling?.scrollTo(0, 0);
     document.querySelectorAll('[data-panel]').forEach(p => p.classList.toggle('hidden', p.dataset.panel !== name));
     document.querySelectorAll('[data-view]').forEach(b => b.classList.toggle('active', b.dataset.view === name));
-    document.getElementById('btnBack').classList.toggle('hidden', name === 'ringkasan');
+    document.getElementById('btnBack').classList.toggle('hidden', name === 'overview');
     document.getElementById('viewTitle').textContent = VIEWS[name][0];
     document.getElementById('viewDesc').textContent = VIEWS[name][1];
-    // the login screen keeps a clean url; the view only lands in the hash once signed in
-    if (session.get('admin') && location.hash.slice(1) !== name) history.replaceState(null, '', `#${name}`);
+    // the login screen keeps a clean url; the view only lands in the path once signed in
+    if (session.get('admin')) route.go(name, push);
 }
 
 function start() {

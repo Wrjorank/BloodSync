@@ -24,7 +24,7 @@ export type StaffNoticeKind =
 // written in the caller's transaction, so a rolled-back action leaves no notice behind
 export async function notifyStaff(
   tx: Prisma.TransactionClient, outbox: Outbox, faskesId: string,
-  n: { kind: StaffNoticeKind; title: string; body: string; view: 'stok' | 'permintaan' | 'pemindai' | 'pendonor' },
+  n: { kind: StaffNoticeKind; title: string; body: string; view: 'stock' | 'requests' | 'scanner' | 'donors' },
 ) {
   await tx.notification.create({ data: { faskesId, ...n } });
   outbox.faskes.add(faskesId);
@@ -122,7 +122,7 @@ async function notifyFamilies(notices: Outbox['familyNotices']) {
     where: { id: { in: [...notices.keys()] } },
     include: { faskes: { select: { name: true } } },
   });
-  const tracker = `${env.publicAppUrl}/pasien`;
+  const tracker = `${env.publicAppUrl}/patient`;
   for (const r of requests) {
     const need = `${r.bagsNeeded} kantong ${COMPONENT_LABEL[r.component]} ${r.bloodType}`;
     const text = notices.get(r.id) === 'APPROVED'
@@ -136,7 +136,7 @@ async function notifyFamilies(notices: Outbox['familyNotices']) {
         tracker,
         ``,
         `Kartu resmi untuk dibagikan ke grup WA / media sosial (status selalu real-time):`,
-        `${env.publicAppUrl}/kartu?t=${r.publicToken}`,
+        `${env.publicAppUrl}/card?t=${r.publicToken}`,
       ].join('\n')
       : [
         `🎉 *Kebutuhan darah ${r.code} sudah terpenuhi.*`,
@@ -189,7 +189,7 @@ export async function flush(outbox: Outbox) {
         await step(`undangan ${t.id}`, async () => {
           io?.to(rooms.donor(t.donorId)).emit('invite:new', { ticketId: t.id, requestId: r.id });
           await channels.push(t.donorId, 'Panggilan Darurat BloodSync', text);
-          const lines = [`🩸 ${text}`, ``, `Balas *1* = Siap Mendonor`, `Balas *2* = Tidak Bisa`, ``, `Atau buka ${env.publicAppUrl}/pendonor (masuk dengan nomor WA ini, tanpa daftar)`];
+          const lines = [`🩸 ${text}`, ``, `Balas *1* = Siap Mendonor`, `Balas *2* = Tidak Bisa`, ``, `Atau buka ${env.publicAppUrl}/donor (masuk dengan nomor WA ini, tanpa daftar)`];
           // registry donors never signed up: say why they got this and how to stop it
           if (t.donor.source === 'REGISTRY') {
             lines.push(``, `Anda menerima pesan ini karena terdata sebagai calon pendonor golongan darah ${t.donor.bloodType} di dekat ${r.faskes.name}. Balas *STOP* bila tidak ingin dihubungi lagi.`);

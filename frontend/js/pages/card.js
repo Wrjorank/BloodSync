@@ -1,4 +1,4 @@
-// kartu.js — public emergency card; status is read live from the api, so a forwarded link can never go stale
+// card.js — public emergency card; status is read live from the api, so a forwarded link can never go stale
 const STATE = {
     VERIFIED: ['TERVERIFIKASI', 'bg-blue-50 border-blue-200 text-blue-800', 'fa-circle-check', 'Kebutuhan ini sudah diverifikasi faskes. Petugas sedang mengecek stok; bila kurang, panggilan donor akan dibuka di kartu ini. Pantau statusnya sebelum datang.'],
     OPEN: ['DIBUKA', 'bg-green-50 border-green-200 text-green-800', 'fa-circle-dot', 'Masih membutuhkan pendonor. Pastikan Anda sehat, lalu datang ke UDD faskes.'],
@@ -73,7 +73,7 @@ async function render(token) {
                 </div>
 
                 ${c.state === 'OPEN' ? `
-                    <a href="/pendonor" class="block w-full text-center bg-brand-600 text-white font-bold py-3.5 rounded-xl hover:bg-brand-700 shadow-lg shadow-brand-500/30">
+                    <a href="/donor" class="block w-full text-center bg-brand-600 text-white font-bold py-3.5 rounded-xl hover:bg-brand-700 shadow-lg shadow-brand-500/30">
                         Saya bisa donor <i class="fa-solid fa-arrow-right ml-1"></i>
                     </a>
                     <p class="text-[11px] text-slate-400 text-center">Daftar dulu agar slot Anda dikunci dan tidak datang sia-sia.</p>` : ''}

@@ -1,4 +1,4 @@
-// faskes.js — operational dashboard for RS / UDD PMI staff, backed by /api/faskes/me
+// facility.js — operational dashboard for RS / UDD PMI staff, backed by /api/facility/me
 const DOC_CHECKS = [
     'Nomor rekam medis sesuai data pasien',
     'Komponen & jumlah kantong sesuai surat',
@@ -12,14 +12,14 @@ let LOW_STOCK = 2;
 // server data from the last load
 const data = { faskes: null, stock: [], active: [], history: [], options: {}, arrivals: [], movements: [], pool: null, transfers: { incoming: [], outgoing: [] } };
 // ui-only state that must survive re-renders
-const ui = { checks: {}, rejecting: {}, dispatch: {}, busy: false, modal: null, unsubscribe: null, seq: 0 };
+const ui = { checks: {}, rejecting: {}, dispatch: {}, busy: false, modal: null, view: 'stock', wanted: null, unsubscribe: null, seq: 0 };
 
 document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('loginForm').addEventListener('submit', onLogin);
     document.getElementById('btnLogout').addEventListener('click', logout);
     document.getElementById('btnLogoutMobile').addEventListener('click', logout);
 
-    document.querySelectorAll('[data-view]').forEach(b => b.addEventListener('click', () => showView(b.dataset.view)));
+    document.querySelectorAll('[data-view]').forEach(b => b.addEventListener('click', () => showView(b.dataset.view, true)));
     document.querySelectorAll('[data-open]').forEach(b => b.addEventListener('click', () => document.getElementById(b.dataset.open).showModal()));
     document.querySelectorAll('dialog').forEach(d => {
         d.querySelectorAll('[data-close]').forEach(b => b.addEventListener('click', () => d.close()));
@@ -27,8 +27,8 @@ document.addEventListener('DOMContentLoaded', () => {
     });
     const header = document.querySelector('main > header');
     autoHideHeader(header, header.nextElementSibling);
-    window.addEventListener('hashchange', () => showView(location.hash.slice(1)));
-    showView(location.hash.slice(1));
+    window.addEventListener('popstate', () => showView(route.current()));
+    showView(route.current());
 
     document.getElementById('scanForm').addEventListener('submit', (e) => {
         e.preventDefault();
@@ -55,7 +55,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // the export dialog opens on the dataset of the current view
     setupExport({
         download: store.staff.export,
-        pick: () => ({ stok: 'stok', permintaan: 'permintaan', pemindai: 'tiket-donor', pendonor: 'tiket-donor' })[location.hash.slice(1)] || 'stok'
+        pick: () => ({ stock: 'stock', requests: 'requests', scanner: 'donor-tickets', donors: 'donor-tickets' })[ui.view] || 'stock'
     });
     setupImport({ template: store.staff.importTemplate, upload: store.staff.import, onDone: () => load() });
 
@@ -74,26 +74,35 @@ document.addEventListener('DOMContentLoaded', () => {
     else showLogin(true);
 });
 
-const VIEWS = ['stok', 'permintaan', 'pemindai', 'pendonor', 'notifikasi'];
+const VIEWS = ['stock', 'requests', 'scanner', 'donors', 'notifications'];
+// views lived in the hash before they moved to the path (/facility#stok)
+const route = viewRouter(VIEWS, 'stock', { stok: 'stock', permintaan: 'requests', pemindai: 'scanner', pendonor: 'donors', notifikasi: 'notifications' });
 
-function showView(name) {
-    if (!VIEWS.includes(name)) name = 'stok';
+function showView(name, push = false) {
+    if (!VIEWS.includes(name)) name = 'stock';
+    ui.view = name;
     // each view starts at the top, which also brings a hidden header back
     document.querySelector('main > header')?.nextElementSibling?.scrollTo(0, 0);
     document.querySelectorAll('[data-panel]').forEach(p => p.classList.toggle('hidden', p.dataset.panel !== name));
     document.querySelectorAll('.nav-link, .tab-link').forEach(b => b.classList.toggle('active', b.dataset.view === name));
-    document.getElementById('btnBack').classList.toggle('hidden', name === 'stok');
-    // the login screen keeps a clean url; the view only lands in the hash once signed in
-    if (session.get('staff') && location.hash.slice(1) !== name) history.replaceState(null, '', `#${name}`);
-    if (name === 'pemindai') document.getElementById('scanCode').focus();
+    document.getElementById('btnBack').classList.toggle('hidden', name === 'stock');
+    // the login screen keeps a clean url; the view only lands in the path once signed in
+    if (session.get('staff')) route.go(name, push);
+    if (name === 'scanner') document.getElementById('scanCode').focus();
     else stopCamera();
-    if (name === 'notifikasi' && session.get('staff')) loadNotifPage();
+    if (name === 'notifications' && session.get('staff')) loadNotifPage();
 }
 
 function showLogin(show) {
     document.getElementById('loginView').classList.toggle('hidden', !show);
-    if (show && location.hash) history.replaceState(null, '', location.pathname + location.search);
-    else if (!show) showView(location.hash.slice(1));
+    // the view asked for in the url is kept across the login screen, then restored
+    if (show) {
+        ui.wanted = route.current();
+        route.reset();
+    } else {
+        showView(ui.wanted || route.current());
+        ui.wanted = null;
+    }
     // keep keyboard focus inside the overlay
     document.querySelectorAll('body > aside, body > main').forEach(el => { el.inert = show; });
 }
@@ -215,9 +224,9 @@ function renderKpis() {
         kpi('Total stok', total, 'kantong tersedia', 'fa-droplet', 'bg-brand-50 text-brand-600'),
         kpi('Stok kosong', empty, `dari ${cells.length} kombinasi`, 'fa-circle-exclamation', 'bg-red-50 text-red-600'),
         kpi('Stok menipis', low, `di bawah ${LOW_STOCK} kantong`, 'fa-triangle-exclamation', 'bg-amber-50 text-amber-600'),
-        kpi('Permintaan aktif', data.active.length, pending ? `${pending} menunggu verifikasi` : 'tidak ada yang menunggu', 'fa-file-waveform', 'bg-blue-50 text-blue-600', 'permintaan')
+        kpi('Permintaan aktif', data.active.length, pending ? `${pending} menunggu verifikasi` : 'tidak ada yang menunggu', 'fa-file-waveform', 'bg-blue-50 text-blue-600', 'requests')
     ].join('');
-    el.querySelectorAll('[data-go]').forEach(b => b.addEventListener('click', () => showView(b.dataset.go)));
+    el.querySelectorAll('[data-go]').forEach(b => b.addEventListener('click', () => showView(b.dataset.go, true)));
 }
 
 // stock matrix: component x ABO/Rh
@@ -303,7 +312,7 @@ async function loadNotifications() {
         notif.latest = res.items;
         notif.unread = res.unread;
         renderNotifications();
-        if (location.hash.slice(1) === 'notifikasi') loadNotifPage();
+        if (ui.view === 'notifications') loadNotifPage();
     } catch (error) {
         if (error.status !== 401) console.warn('[notifikasi]', error.message);
     }
@@ -369,7 +378,7 @@ function renderNotifPage() {
 
 async function openNotification(btn) {
     toggleNotifications(false);
-    showView(btn.dataset.go);
+    showView(btn.dataset.go, true);
     if (btn.dataset.read === 'true') return;
     await store.staff.readNotification(btn.dataset.notif).catch(() => undefined);
     loadNotifications();
@@ -379,7 +388,7 @@ async function readAllNotifications() {
     try {
         await store.staff.readAllNotifications();
         await loadNotifications();
-        if (location.hash.slice(1) === 'notifikasi') loadNotifPage();
+        if (ui.view === 'notifications') loadNotifPage();
     } catch (error) {
         if (error.status !== 401) toast(error.message, 'error');
     }
@@ -398,7 +407,7 @@ function setupNotifications() {
     document.getElementById('notifPageReadAll').addEventListener('click', readAllNotifications);
     document.getElementById('notifViewAll').addEventListener('click', () => {
         toggleNotifications(false);
-        showView('notifikasi');
+        showView('notifications', true);
     });
     document.getElementById('notifRefresh').addEventListener('click', () => { loadNotifications(); loadNotifPage(); });
     document.getElementById('notifPageSize').addEventListener('change', (e) => {
@@ -794,7 +803,7 @@ async function scan(code) {
 // camera qr scanning; the library is fetched on first use so the dashboard stays light
 // token changes on every stop, so a start that resolves after the user left knows to shut itself down
 const camera = { instance: null, busy: false, token: 0 };
-const QR_LIB = 'vendor/html5-qrcode.min.js';
+const QR_LIB = '/vendor/html5-qrcode.min.js';
 
 function loadQrLib() {
     if (window.Html5Qrcode) return Promise.resolve();

@@ -1,4 +1,4 @@
-// pendonor.js — donor app: otp login/registration, targeted alerts, digital ticket, history & recovery cycle
+// donor.js — donor app: otp login/registration, targeted alerts, digital ticket, history & recovery cycle
 const DISMISSED_KEY = 'bs_reminder_dismissed';
 let dash = null;
 let pendingPhone = null;

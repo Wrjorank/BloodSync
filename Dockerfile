@@ -19,7 +19,7 @@ COPY backend/tsconfig.json ./
 COPY backend/src ./src
 RUN npx tsc
 
-# index.ts menyajikan ../../frontend relatif terhadap dist/, yaitu /app/frontend
+# routes/pages.ts menyajikan ../../../frontend relatif terhadap dist/routes/, yaitu /app/frontend
 COPY frontend/*.html /app/frontend/
 COPY frontend/css /app/frontend/css
 COPY frontend/js /app/frontend/js
