@@ -1,0 +1,5 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <uses-permission android:name="android.permission.INTERNET" />
+    <!-- http polos hanya untuk build debug (backend lokal); build release wajib https -->
+    <application android:usesCleartextTraffic="true" />
+</manifest>

@@ -97,8 +97,8 @@ model Faskes {
   @@map("faskes")
 }
 
-// one browser/device that agreed to receive push notifications (firebase cloud messaging).
-// a token belongs to either a donor or a staff account; signing in elsewhere moves it
+// one browser/app install that agreed to receive push notifications (firebase cloud messaging).
+// a token belongs to a donor, a staff account, or a patient family (by verified whatsapp number); signing in elsewhere moves it
 model PushToken {
   id         String   @id @default(uuid())
   token      String   @unique
@@ -107,12 +107,15 @@ model PushToken {
   userId     String?
   user       User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
   faskesId   String?
+  // patient family, who has no account: their otp-verified number
+  phone      String?  @db.VarChar(20)
   userAgent  String?
   createdAt  DateTime @default(now())
   lastSeenAt DateTime @default(now())
 
   @@index([donorId])
   @@index([faskesId])
+  @@index([phone])
   @@map("push_tokens")
 }
 
