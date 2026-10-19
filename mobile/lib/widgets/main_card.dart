@@ -19,8 +19,9 @@ const badgeIcons = {
 
 // area utama menampilkan tepat satu: tiket aktif, hasil yang belum dibaca, radar, atau masa pemulihan
 class MainCard extends StatelessWidget {
-  const MainCard({super.key, required this.c});
+  const MainCard({super.key, required this.c, this.demoRoutes = false});
   final DonorController c;
+  final bool demoRoutes;
 
   @override
   Widget build(BuildContext context) {
@@ -28,7 +29,7 @@ class MainCard extends StatelessWidget {
     if (d.activeTicket != null) return TicketCard(ticket: d.activeTicket!, c: c);
     if (d.outcome != null) return OutcomeCard(outcome: d.outcome!, dash: d, onClose: () => c.acknowledge(d.outcome!.ticketId));
     if (d.eligibility.eligible) return RadarView(profile: d.profile);
-    return LockedView(eligibility: d.eligibility, onSkip: c.finishRecovery);
+    return LockedView(eligibility: d.eligibility, onSkip: demoRoutes ? c.finishRecovery : null);
   }
 }
 
@@ -288,9 +289,9 @@ class _RadarViewState extends State<RadarView> with SingleTickerProviderStateMix
 }
 
 class LockedView extends StatelessWidget {
-  const LockedView({super.key, required this.eligibility, required this.onSkip});
+  const LockedView({super.key, required this.eligibility, this.onSkip});
   final Eligibility eligibility;
-  final VoidCallback onSkip;
+  final VoidCallback? onSkip;
 
   @override
   Widget build(BuildContext context) {
@@ -312,11 +313,12 @@ class LockedView extends StatelessWidget {
             child: LinearProgressIndicator(value: progress, minHeight: 8, backgroundColor: Slate.c100, color: const Color(0xFFFBBF24)),
           ),
           const SizedBox(height: 8),
-          TextButton(
-            onPressed: onSkip,
-            style: TextButton.styleFrom(foregroundColor: Slate.c400),
-            child: const Text('Lewati masa pemulihan (demo)', style: TextStyle(fontSize: 12, decoration: TextDecoration.underline)),
-          ),
+          if (onSkip != null)
+            TextButton(
+              onPressed: onSkip,
+              style: TextButton.styleFrom(foregroundColor: Slate.c400),
+              child: const Text('Lewati masa pemulihan (demo)', style: TextStyle(fontSize: 12, decoration: TextDecoration.underline)),
+            ),
         ]),
       ),
     );

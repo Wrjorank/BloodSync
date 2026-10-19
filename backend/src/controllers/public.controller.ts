@@ -16,6 +16,8 @@ export const publicController = {
       screening: SCREENING,
       // tells local pages to show whatsapp messages on screen; always false in production
       devInbox: env.devInbox,
+      // demo shortcuts (e.g. skip recovery) only exist when the demo routes are registered
+      demoRoutes: env.enableDemoRoutes,
       // public web config for firebase messaging; null while push is not configured
       push: env.firebase?.web ?? null,
     });

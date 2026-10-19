@@ -67,7 +67,7 @@ class _HomeScreenState extends State<HomeScreen> {
                             padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
                             child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
                               _ReminderBanner(c: c),
-                              MainCard(c: c),
+                              MainCard(c: c, demoRoutes: widget.app.meta?.demoRoutes == true),
                               const SizedBox(height: 16),
                               _Availability(c: c),
                               const SizedBox(height: 8),

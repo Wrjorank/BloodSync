@@ -14,7 +14,7 @@ Panggilan darurat sampai lewat **push notification** (Firebase Cloud Messaging) 
 ```bash
 cd mobile
 flutter pub get
-flutter run                                   # memakai API staging https://bloodsync.delcom.org
+flutter run                                   # memakai server deploy https://bloodsync.delcom.org
 flutter run --dart-define=API_BASE=http://10.0.2.2:5000      # backend lokal dari emulator
 flutter run --dart-define=API_BASE=http://<ip-laptop>:5000   # backend lokal dari hp fisik (satu wifi)
 ```
