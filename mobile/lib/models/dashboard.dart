@@ -171,9 +171,11 @@ class Meta {
   Meta.fromJson(Map<String, dynamic> j)
       : areas = _strings(j['areas']),
         maxAlertsPerWeek = _int(_obj(j['dispatch'])?['maxAlertsPerWeek']),
-        devInbox = j['devInbox'] == true;
+        devInbox = j['devInbox'] == true,
+        demoRoutes = j['demoRoutes'] == true;
 
   final List<String> areas;
   final int maxAlertsPerWeek;
   final bool devInbox;
+  final bool demoRoutes;
 }

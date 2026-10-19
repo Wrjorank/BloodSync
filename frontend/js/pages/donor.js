@@ -7,6 +7,7 @@ let mainKey = null;
 let unsubscribe = null;
 let loadSeq = 0;
 let active = false; // a donor or phone-only session is in use on this page
+let demoRoutes = false;
 // invites already answered here; a dashboard fetched before the answer landed must not reopen them
 const answered = new Set();
 
@@ -44,6 +45,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     try {
         const meta = await store.meta();
+        demoRoutes = meta.demoRoutes === true;
         document.getElementById('alertCap').textContent = meta.dispatch.maxAlertsPerWeek;
         document.getElementById('donorArea').innerHTML = '<option value="" disabled selected>Pilih kecamatan</option>' +
             meta.areas.map(a => `<option>${esc(a)}</option>`).join('');
@@ -411,7 +413,7 @@ function lockedView() {
             <h3 class="font-bold text-slate-800">Masa pemulihan</h3>
             <p class="text-sm text-slate-500 mt-1">Panggilan darurat dijeda ${el.daysLeft} hari lagi, hingga <b>${fmtDate(el.nextDate)}</b>.</p>
             <div class="mt-4 h-2 rounded-full bg-slate-100 overflow-hidden"><div class="h-full bg-amber-400 rounded-full" style="width:${pct}%"></div></div>
-            <button data-finish-recovery class="mt-5 text-xs font-semibold text-slate-400 hover:text-slate-600 underline">Lewati masa pemulihan</button>
+            ${demoRoutes ? '<button data-finish-recovery class="mt-5 text-xs font-semibold text-slate-400 hover:text-slate-600 underline">Lewati masa pemulihan</button>' : ''}
         </div>`;
 }
 

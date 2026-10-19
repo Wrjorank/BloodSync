@@ -27,6 +27,7 @@
             <nav class="flex items-center gap-1 sm:gap-2 text-sm">
                 <a href="#cara-kerja" class="hidden sm:inline-block px-3 py-2 rounded-lg text-slate-300 hover:text-white hover:bg-white/10 font-medium">Cara Kerja</a>
                 <a href="#peran" class="hidden sm:inline-block px-3 py-2 rounded-lg text-slate-300 hover:text-white hover:bg-white/10 font-medium">Masuk</a>
+                <a href="#tentang" class="hidden sm:inline-block px-3 py-2 rounded-lg text-slate-300 hover:text-white hover:bg-white/10 font-medium">Tentang</a>
                 <span class="hidden md:flex items-center gap-1.5 text-xs text-slate-300 pl-2"><span class="live-dot w-2 h-2 rounded-full bg-green-400"></span> Sistem aktif</span>
                 <a href="/patient" class="sm:hidden px-3 py-2 rounded-lg bg-brand-600 text-white font-semibold text-xs">Butuh darah</a>
             </nav>
@@ -153,11 +154,53 @@
                 </ol>
             </div>
         </section>
+
+        <!-- about -->
+        <section id="tentang" class="max-w-6xl mx-auto px-4 sm:px-6 py-12 scroll-mt-20">
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-8 items-center">
+                <div>
+                    <div class="flex items-center gap-3">
+                        <div class="w-12 h-12 rounded-xl bg-brand-600 flex items-center justify-center shadow-lg shadow-brand-600/30"><i class="fa-solid fa-droplet text-white text-xl"></i></div>
+                        <div>
+                            <h2 class="text-2xl sm:text-3xl font-extrabold text-slate-900 leading-tight">Tentang BloodSync</h2>
+                            <span class="inline-block mt-1 px-2.5 py-0.5 rounded-full bg-brand-50 border border-brand-200 text-brand-700 text-xs font-bold">Versi 1.0 Beta</span>
+                        </div>
+                    </div>
+                    <p class="text-slate-600 mt-5 leading-relaxed">
+                        BloodSync adalah sistem logistik darah dan panggilan donor presisi. Keluarga pasien, rumah sakit, UDD PMI, dan pendonor terdekat terhubung dalam satu sistem, sehingga waktu tunggu pasien kritis bisa dipangkas dan pasien tidak perlu dipindah-pindah antarfaskes karena stok darah.
+                    </p>
+                    <p class="text-slate-500 mt-3 text-sm leading-relaxed">
+                        Tersedia di web dan aplikasi Android. Panggilan darurat dikirim lewat notifikasi aplikasi dan WhatsApp.
+                    </p>
+                </div>
+                <div class="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm">
+                    <div class="text-[11px] font-bold uppercase tracking-wider text-slate-400">Tim pengembang</div>
+                    <div class="text-xl font-extrabold text-slate-900 mt-1">ONGOING MAGANG</div>
+                    <ul class="mt-4 divide-y divide-slate-100">
+                        <li class="flex items-center gap-3 py-3">
+                            <span class="w-9 h-9 shrink-0 rounded-full bg-brand-50 text-brand-600 font-bold flex items-center justify-center">W</span>
+                            <span class="flex-grow font-semibold text-slate-800">Wahyu Rizky F Simanjorang</span>
+                            <span class="text-sm text-slate-500 tabular-nums">11S23040</span>
+                        </li>
+                        <li class="flex items-center gap-3 py-3">
+                            <span class="w-9 h-9 shrink-0 rounded-full bg-brand-50 text-brand-600 font-bold flex items-center justify-center">R</span>
+                            <span class="flex-grow font-semibold text-slate-800">Raynal Haposan Napitupulu</span>
+                            <span class="text-sm text-slate-500 tabular-nums">11S23039</span>
+                        </li>
+                        <li class="flex items-center gap-3 py-3">
+                            <span class="w-9 h-9 shrink-0 rounded-full bg-brand-50 text-brand-600 font-bold flex items-center justify-center">S</span>
+                            <span class="flex-grow font-semibold text-slate-800">Sri Intan Ivana Pasaribu</span>
+                            <span class="text-sm text-slate-500 tabular-nums">11S23006</span>
+                        </li>
+                    </ul>
+                </div>
+            </div>
+        </section>
     </main>
 
     <footer class="py-6">
         <div class="max-w-6xl mx-auto px-4 sm:px-6 flex flex-col sm:flex-row items-center justify-between gap-2 text-xs text-slate-500">
-            <div class="flex items-center gap-2"><i class="fa-solid fa-droplet text-brand-600"></i><span class="font-bold text-slate-700">BloodSync</span><span>— logistik darah presisi</span></div>
+            <div class="flex items-center gap-2"><i class="fa-solid fa-droplet text-brand-600"></i><span class="font-bold text-slate-700">BloodSync</span><span>— logistik darah presisi</span><span class="text-slate-400">• v1.0 Beta • Tim ONGOING MAGANG</span></div>
             <span>Donor darah gratis. Jangan transfer uang atas nama permintaan darah.</span>
         </div>
     </footer>

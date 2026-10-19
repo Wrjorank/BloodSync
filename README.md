@@ -2,6 +2,18 @@
 
 Sistem yang menghubungkan bank darah rumah sakit, UDD PMI, keluarga pasien, dan calon pendonor. Tujuannya memangkas waktu tunggu pasien kritis dan mencegah pasien dipindah-pindah antarfaskes karena stok darah.
 
+## Demo langsung
+
+Aplikasi sudah di-deploy di **https://bloodsync.delcom.org**.
+
+| Peran | Halaman |
+|---|---|
+| Petugas RS / UDD PMI | https://bloodsync.delcom.org/facility |
+| Keluarga pasien | https://bloodsync.delcom.org/patient |
+| Calon pendonor | https://bloodsync.delcom.org/donor |
+
+Karena berjalan di HTTPS, GPS pendonor, kamera pemindai QR, dan push notification bisa langsung dicoba dari HP. Aplikasi Android (`mobile/`) juga memakai server ini secara default.
+
 ## Menjalankan dengan Docker (paling cepat)
 
 Butuh Docker Desktop saja.
@@ -11,30 +23,6 @@ docker compose up -d --build
 ```
 
 Buka **http://localhost:5000** (Swagger: http://localhost:5000/docs). Redis, migrasi, dan data awal disiapkan otomatis (menggunakan database PostgreSQL eksternal). Kode OTP muncul sebagai notifikasi di browser, juga di `docker compose logs -f app`.
-
-## Akses lewat Tailscale
-
-Untuk membuka app dari device lain di jaringan Tailnet Anda, pakai file `.env` di root project dan isi:
-
-```bash
-PUBLIC_APP_URL=http://<nama-device>.ts.net:5000
-TRUST_PROXY=0
-```
-
-Atau pakai IP Tailnet langsung:
-
-```bash
-PUBLIC_APP_URL=http://100.85.156.42:5000
-TRUST_PROXY=0
-```
-
-Setelah itu, jalankan:
-
-```bash
-docker compose up -d --build
-```
-
-Aplikasi akan terbuka di `http://<nama-device>.ts.net:5000` (atau IP Tailnet). Untuk Docker Compose yang dipakai di repo ini, port sudah dibuka ke semua interface (`5000:5000`) agar Tailscale bisa menjangkau.
 
 - WhatsApp asli: salin `.env.example` menjadi `.env`, isi `FONNTE_TOKEN`, lalu jalankan `docker compose up -d`. Langkah lengkapnya ada di bagian "WhatsApp: lokal vs production".
 - Hentikan dengan `docker compose down`. Untuk menghapus database juga, pakai `docker compose down -v`.
@@ -143,7 +131,8 @@ Tombol **Import** dan **Export** ada di kanan atas dasbor faskes dan admin.
 ```bash
 cd backend
 npm test                                      # unit + routing halaman, tanpa database (beberapa detik)
-API_URL=http://localhost:5000 npm test        # + smoke test ke server yang sedang jalan (lokal atau staging)
+API_URL=http://localhost:5000 npm test        # + smoke test ke server lokal
+API_URL=https://bloodsync.delcom.org npm test  # + smoke test ke server deploy
 ```
 
 Yang dites: kompatibilitas golongan darah, hitungan progres kebutuhan, masa pemulihan pendonor, pembacaan browser/platform untuk log aktivitas, URL halaman dan redirect link lama, cache aset, serta smoke test API (health, sesi wajib, webhook, kompresi).
