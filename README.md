@@ -30,7 +30,7 @@ Buka **http://localhost:5000** (Swagger: http://localhost:5000/docs). Redis, mig
 
 ## Menjalankan tanpa Docker
 
-Butuh Node.js 20+, PostgreSQL 14+, dan (opsional) Redis.
+Butuh Node.js 24+, PostgreSQL 14+, dan (opsional) Redis.
 
 ```bash
 cd backend

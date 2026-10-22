@@ -1,5 +1,5 @@
 # backend + frontend statis dalam satu image (backend menyajikan folder frontend/)
-FROM node:20-bookworm-slim
+FROM node:24-bookworm-slim
 
 # prisma butuh openssl untuk query engine
 RUN apt-get update && apt-get install -y --no-install-recommends openssl ca-certificates \
